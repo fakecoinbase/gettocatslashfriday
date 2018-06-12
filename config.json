@@ -1,0 +1,49 @@
+{
+    "modules": [
+        "networkhandler",
+        "pow",
+        "wallet",
+        "miner",
+        "state",
+        "chain",
+        "network"
+    ],
+    "tests": [],
+    "network": 1,
+    "1": {
+        "port": 19840,
+        "magic": "ff3c2b1e",
+        "nodes": [
+            "127.0.0.1//19840"
+        ]
+    },
+    "debug": {
+        "network": true,
+        "protocol": true,
+        "peers": true,
+        "handler": true
+    },
+    "node": {
+        "publicKey": "04aa443931cceeadbbf591f60dceb47b7051045c29d3130203532e7112fbe6a6e92af3ee724be384903c7220998386835864aa63e5a14513d4704777119dacdb94",
+        "privateKey": "58a38eee853f5a682c263c862a5d8d4a47deb5b853dd1f6cec241d884829ebea"
+    },
+    "agent": {
+        "name": "fridayjs",
+        "version": 0.1
+    },
+    "consensus": {
+        "version": 1,
+        "algo": "pow",
+        "blockEvery": 60,
+        "data.timeout": 300,
+        "history": 300,
+        "nopeerstimeout": 15000
+    },
+    "pow": {
+        "algo": "sha256",
+        "target": 60,
+        "diffWindow": 120,
+        "diffLag": 2,
+        "diffCut": 6
+    }
+}

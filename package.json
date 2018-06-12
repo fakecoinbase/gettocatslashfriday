@@ -1,0 +1,36 @@
+{
+    "name": "friday-node",
+    "version": "0.0.1",
+    "description": "Friday client",
+    "main": "index.js",
+    "repository": "https://github.com/gettocat/friday",
+    "homepage": "https://github.com/gettocat/friday",
+    "keywords": [
+        "blockchain",
+        "p2p",
+        "orwell"
+    ],
+    "dependencies": {
+        "n64": "^0.1.2",
+        "bn.js": "^4.11.8",
+        "lokijs": "^1.5.1",
+        "hash.js": "^1.1.3",
+        "base-58": "^0.0.1",
+        "elliptic": "^6.4.0",
+        "bitpony": "^0.0.1",
+        "split": "^1.0.1",
+        "int64-buffer": "^0.1.9",
+        "merkle-tools": "^1.4.0",
+        "orwelldb": "^0.0.8",
+        "bloom-filter": "^0.2.0",
+        "node-cryptonight": "^1.1.0",
+        "recursive-diff": "^0.1.2",
+        "threads": "^0.11.0"
+    },
+    "author": {
+        "name": "Nanocat <gettocat@github.com>",
+        "email": "alex@letris.ru"
+    },
+    "license": "MIT",
+    "devDependencies": {}
+}
