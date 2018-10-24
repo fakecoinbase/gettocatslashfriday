@@ -109,7 +109,16 @@ class app extends EventEmitter {
         this.emit("config.load", optionsOrFile);
     }
     cnf(argument) {
-        return argument ? this.config.arg[argument] : this.config.arg;
+
+        if (argument && argument != this.config.arg.network) {
+            if (['tests', 'network', 'agent'].indexOf(argument) >= 0)
+                return this.config.arg[argument];
+            else
+                return this.config.arg[this.config.arg.network][argument];
+        } else if (argument && argument == this.config.arg.network)
+            return this.config.arg[this.config.arg.network];//get network settings only
+
+        return this.config.arg;//get all config
     }
     isTestInstanceForModule(moduleName) {
 
