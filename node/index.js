@@ -4,7 +4,7 @@ const path = require('path');
 const appError = require('./error').createAppError;
 
 class app extends EventEmitter {
-    constructor(config, modules) {
+    constructor(config) {
         super();
 
         if (!config)
@@ -18,13 +18,15 @@ class app extends EventEmitter {
 
         this.loadModule('config');
         this.loadConfig(config);
-        //load system modules
-        this.loadToolset('crypto');
-        this.loadToolset('tools');
-        this.loadModule('db');
 
-        if (modules)
-            this.loadModules(modules);
+        //load system modules
+        let def = [
+            this.loadToolset('crypto'),
+            this.loadToolset('tools'),
+            this.loadModule('db'),
+        ];
+
+        Promise.all(def)
     }
     debug(level, module_name, text) {
 
@@ -47,7 +49,12 @@ class app extends EventEmitter {
         if (!modules)
             modules = this.cnf('modules');
 
-        this.loadModules(modules);
+        return this.loadModules(modules)
+            .then((results) => {
+                this.debug('info', "app", 'loaded all modules; sending init event');
+                this.emit("init", results);
+                return Promise.resolve(results);
+            })
     }
     throwError(message, code, details) {
         throw (
@@ -59,14 +66,15 @@ class app extends EventEmitter {
         );
     }
     loadModules(arr) {
+        let list = [];
         for (let i in arr) {
             if (arr[i] instanceof Array)
-                this.loadModule(arr[i][0], arr[i][1])
+                list.push(this.loadModule(arr[i][0], arr[i][1]))
             else
-                this.loadModule(arr[i])
+                list.push(this.loadModule(arr[i]))
         }
 
-        this.emit("init");
+        return Promise.all(list)
     }
     loadModule(name, modulepath) {
         let filepath = path.resolve(name);
@@ -76,15 +84,22 @@ class app extends EventEmitter {
             filepath = modulepath;
         }
 
+        let res = null;
         let cls = require(filepath + '/index');
         this[name] = new cls(this, name);
         if (this[name].init instanceof Function && this.isTestInstanceForModule(name))
-            this[name].init();
+            res = this[name].init();
         this.debug('info', name, 'loaded');
         this.emit("module.loaded", {
             module: name,
             object: this[name]
         });
+
+        if (res instanceof Promise)
+            return res;
+        else
+            return Promise.resolve(res);
+
     }
     loadToolset(name, modulepath) {
         let filepath = path.resolve(name);
@@ -103,6 +118,8 @@ class app extends EventEmitter {
             object: this[name],
             toolset: true,//static library (no object with constructor, just set of some tool-functions)
         });
+
+        return Promise.resolve(this[name]);
     }
     loadConfig(optionsOrFile) {
         this.debug("info", "config", 'load config file')
