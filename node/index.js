@@ -10,6 +10,10 @@ class app extends EventEmitter {
         if (!config)
             config = {};
 
+        this.cwd = "./";
+        if (config.cwd)
+            this.cwd = config.cwd + "/node/";
+
         this.fisReadySended = false;
         this.appstate = '';
         this.prevappstate = '';
@@ -79,7 +83,7 @@ class app extends EventEmitter {
     loadModule(name, modulepath) {
         let filepath = path.resolve(name);
         if (!modulepath) {
-            filepath = "./modules/" + name;
+            filepath = this.cwd + "modules/" + name;
         } else {
             filepath = modulepath;
         }

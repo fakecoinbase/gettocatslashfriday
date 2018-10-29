@@ -11,7 +11,7 @@
             "networkhandler",
             "wallet",
             "storage",
-            "btc-chain"
+            "btcchain"
         ],
         "consensus": {
             "version": 1,

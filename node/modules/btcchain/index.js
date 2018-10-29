@@ -8,6 +8,13 @@ class chain {
         //this.index = new indexClass(app);
 
         this.app = app;
+        this.hash = (bufferOrString) => {
+            return this.app.crypto.sha256(this.app.crypto.sha256(new Buffer(bufferOrString)));
+        }
+
+        this.ADDRESS = require('./primitives/address');
+        this.SCRIPT = require('./primitives/script');
+        this.TX = require('./primitives/tx');
     }
     init() {
         /*this.app.setSyncState('loadFromCache');

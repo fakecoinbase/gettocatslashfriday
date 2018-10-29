@@ -21,7 +21,7 @@
         "split": "^1.0.1",
         "int64-buffer": "^0.1.9",
         "merkle-tools": "^1.4.0",
-        "orwelldb": "^0.0.8",
+        "orwelldb": "^0.0.13",
         "bloom-filter": "^0.2.0",
         "node-cryptonight": "^1.1.0",
         "recursive-diff": "^0.1.2",
@@ -32,5 +32,10 @@
         "email": "alex@letris.ru"
     },
     "license": "MIT",
-    "devDependencies": {}
+    "devDependencies": {
+        "mocha": "^5.2.0"
+    },
+    "scripts": {
+        "test": "mocha ./__tests/mocha/*.js"
+    }
 }
