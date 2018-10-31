@@ -9,7 +9,7 @@ class chain {
 
         this.app = app;
         this.hash = (bufferOrString) => {
-            return this.app.crypto.sha256(this.app.crypto.sha256(new Buffer(bufferOrString)));
+            return this.app.crypto.sha256(this.app.crypto.sha256(new Buffer(bufferOrString, 'hex')));
         }
 
         this.ADDRESS = require('./primitives/address');

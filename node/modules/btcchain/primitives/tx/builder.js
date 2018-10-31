@@ -60,7 +60,15 @@ class builder {
             }
 
             if (arr[i].scriptPubKey) {
-                let addr = this.app.btcchain.SCRIPT.scriptToAddr(this.app, arr[i].scriptPubKey);
+                let addr;
+                try {
+                    addr = this.app.btcchain.SCRIPT.scriptToAddr(this.app, arr[i].scriptPubKey);
+                } catch (e) {
+                    if (e.message == 'Invalid hex string')
+                        throw new Error('invalid tx.out[' + i + '] scriptSig');
+                    else
+                        throw e;
+                }
                 if (!this.app.btcchain.ADDRESS.isValidAddress(addr))
                     throw new Error('invalid address field for tx.out[' + i + ']');
             }
@@ -84,8 +92,43 @@ class builder {
     setCoinbase(inp, out) {
         this.isCoinbase = 1;
         this.coinBaseData = inp.scriptSig;
+
+        if (!this.coinBaseData)
+            throw new Error('coinbase scriptSig (data) must exist');
+
         this.coinBaseSequence = typeof inp.sequence == 'undefined' ? 0 : inp.sequence;
-        this.coinbaseOuts = out;
+        this.coinbaseOuts = [];
+
+        for (let i in out) {
+            if (out[i].address) {
+                if (!this.app.btcchain.ADDRESS.isValidAddress(out[i].address))
+                    throw new Error('invalid address field for tx.out[' + i + ']');
+
+                out[i].scriptPubKey = this.app.btcchain.SCRIPT.addressToScript(this.app, out[i].address);
+            }
+
+            if (out[i].scriptPubKey) {
+                let addr;
+                try {
+                    addr = this.app.btcchain.SCRIPT.scriptToAddr(this.app, out[i].scriptPubKey);
+                    out[i].address = addr;
+                } catch (e) {
+                    if (e.message == 'Invalid hex string')
+                        throw new Error('invalid tx.out[' + i + '] scriptSig');
+                    else
+                        throw e;
+                }
+                if (!this.app.btcchain.ADDRESS.isValidAddress(addr))
+                    throw new Error('invalid address field for tx.out[' + i + ']');
+            }
+
+            if (!out[i].scriptPubKey && !out[i].address) {
+                throw new Error('invalid address/scriptPubKey (not exist) field for tx.out[' + i + ']');
+            }
+
+            this.coinbaseOuts[i] = out[i];
+        }
+
         return this;
     }
     attachData(data, pem) {

@@ -27,9 +27,12 @@ class txParser {
             && this.body['in'][0]['index'] == 0xffffffff)
             this.body.coinbase = 1;
 
-        for (let i in this.body['in']) {
-            this.body['in'][i]['script']  =txParser.parseScriptSig(this.app, this.body['in'][i].scriptSig);
-        }
+        if (this.body.coinbase) {
+            this.body['in'][0]['script'] = this.body['in'][0].scriptSig;
+        } else
+            for (let i in this.body['in']) {
+                this.body['in'][i]['script'] = txParser.parseScriptSig(this.app, this.body['in'][i].scriptSig);
+            }
 
         return this.body;
     }
@@ -82,7 +85,7 @@ class txParser {
         return this.fee;
     }
 
-    static toJSON(app, hex){
+    static toJSON(app, hex) {
         let tx = new txParser(app, hex);
         return tx.toJSON();
     }
@@ -90,13 +93,13 @@ class txParser {
         let tx = new txParser(app);
         return tx.fromJSON(tx_json);
     }
-    static toHEX(app, tx_json){
+    static toHEX(app, tx_json) {
         let tx = new txParser(app);
         return tx.fromJSON(tx_json);
     }
     static fromHEX(app, hex) {
         let tx = new txParser(app, hex);
-         tx.toJSON();
+        tx.toJSON();
         return tx;
     }
 }

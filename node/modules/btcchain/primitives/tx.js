@@ -114,7 +114,6 @@ class TX {
 
             if (!this.raw)
                 this.toHex();
-
             this.id = this.app.tools.reverseBuffer(this.app.btcchain.hash(this.raw)).toString('hex');
         }
 
@@ -158,6 +157,23 @@ class TX {
 //create from json
 //create coinbase
 
+TX.createFromJSON = function (app, data, keys) {
+
+    if (!data.in || !data.out)
+        throw new Error('invalid txdata format, must exist fields txdata.in[], txdata.out[], txdata.version, txdata.lock_time');
+
+    if (!(data.in instanceof Array) || data.in.length < 1)
+        throw new Error("at least one input must be in tx.in");
+
+    if (!(data.out instanceof Array) || data.out.length < 1)
+        throw new Error("at least one input must be in tx.out");
+
+    if (!keys || keys.length < data.in.length)
+        throw new Error("at least " + data.in.length + " keys must exist");
+
+    return TX.createFromRaw(app, data.in, data.out, keys, data.lock_time, data.version, data.datascript);
+}
+
 TX.createFromRaw = function (app, inputs, outputs, keys, lock_time, version, ds) {
     let tx = new TX(app);
 
@@ -181,10 +197,16 @@ TX.createFromRaw = function (app, inputs, outputs, keys, lock_time, version, ds)
     return tx;
 }
 
-TX.createCoinbase = function (app, data, outputs) {
+TX.createCoinbase = function (app, txdata) {
+
+    if (!txdata.in || !txdata.out)
+        throw new Error('invalid txdata format, must exist fields txdata.in[], txdata.out[], txdata.version, txdata.lock_time');
+
     let tx = new TX(app);
     tx
-        .fromCoinBase({ scriptSig: new Buffer(data) }, outputs)
+        .fromCoinBase(txdata.in[0], txdata.out)
+        .setVersion(txdata.version)
+        .setLockTime(txdata.lock_time)
         .toHex();
     return tx;
 }
