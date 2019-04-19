@@ -80,8 +80,9 @@ module.exports = function (app) {
                 type: 'getdata',
                 response: {
                     type: 'blocks',
-                    known: app.btcchain.getKnownRange(),
-                    offset: 0
+                    hashStart: app.btcchain.index.getTop().hash,
+                    hashStop: 0,
+                    offset: 0,
                 }
             })
         }
@@ -151,8 +152,9 @@ module.exports = function (app) {
             isActiveNode = false;
             app.network.protocol.sendOne(connectionInfo, 'getdata', {
                 type: 'blocks',
-                known: app.btcchain.getKnownRange(),
-                offset: 0
+                hashStart: app.btcchain.index.getTop().hash,
+                hashStop: 0,
+                offset: 0,
             });
         }
 
@@ -195,7 +197,9 @@ module.exports = function (app) {
             //send now state to all connected nodes
             app.network.protocol.sendAll('getdata', {
                 type: 'blocks',
-                known: app.btcchain.getKnownRange(),
+                hashStart: app.btcchain.index.getTop().hash,
+                hashStop: 0,
+                offset: 0,
             });
         }
 
@@ -223,9 +227,26 @@ module.exports = function (app) {
             if (app.network.nodes.getState(connectionInfo) == 'syncing')
                 return;
 
-            let range = app.btcchain.getKnownRange();
+            let startIndex = 0;
+            let stopIndex = 0;
+            let offsetIndex = 0;
+            let sendOffset = false;
+
+            startIndex = app.btcchain.index.get("block/" + message.hashStart).height;
+            if (message.hashStop)
+                stopIndex = app.btcchain.index.get("block/" + message.hashStop).height;
+            else
+                stopIndex = 0;
+
+            if (startIndex - stopIndex > app.cnf("consensus").syncmax) {
+                sendOffset = true;
+                offsetIndex = startIndex - app.cnf("consensus").syncmax;
+            } else
+                offsetIndex = stopIndex;
+
+            let range = [startIndex, offsetIndex];
             let first = range[0];
-            let last = 0;//range[0] - app.cnf('consensus').history;//consensus.history must be more then 2 * (pow.diffWindow + 2 * pow.diffCut + 10)//because after pow.diffWindow + 2 * pow.diffCut + 10 node can check next_difficulty value of block
+            let last = range[1];
             if (last < 0)
                 last = 0;
 
@@ -248,8 +269,10 @@ module.exports = function (app) {
             //end send range 
             app.network.protocol.sendOne(connectionInfo, 'blocksync', {
                 'type': 'finish',
-                'hash': list[0].hash + list[list.length - 1].hash
+                'hash': list[0].hash + list[list.length - 1].hash,
+                'hasNext': parseInt(sendOffset),
             });
+
             app.network.nodes.setState(connectionInfo, 'synced');
 
         }
@@ -261,13 +284,6 @@ module.exports = function (app) {
             for (let i in list) {
                 app.network.protocol.sendOne(connectionInfo, 'mempool.tx', list[i]);
             }
-        }
-
-        if (message.type == 'state') {
-
-            let state = app.state.getLatest();
-            app.network.protocol.sendOne(connectionInfo, 'state', state);
-
         }
 
     });
@@ -291,30 +307,32 @@ module.exports = function (app) {
 
             for (let i in blocklist) {
                 try {
-                    app.btcchain.addBlock(blocklist[i], 'sync', { isWindowFirst: i == 0, syncNum: i }, function (block, _, inMainNet) {
-
-                    });
+                    app.btcchain.addBlock(blocklist[i], 'sync', { isWindowFirst: i == 0, syncNum: i });
                 } catch (e) {
                     app.debug("error", "info", e.message);
                 }
             }
 
             //sort blockpool by number
-
             app.db.remove("sync/" + message.hash);
             app.db.remove("activesync");
 
             //call next offset, if have offset param
-            //or call mempool set
-            app.network.protocol.sendOne(connectionInfo, 'getdata', {
-                type: 'mempool'
-            });
+            if (message.hasNext) {
+                app.network.protocol.sendOne(connectionInfo, 'getdata', {
+                    type: 'blocks',
+                    hashStart: app.btcchain.index.getTop().hash,
+                    hashStop: 0,
+                    offset: 0,
+                });
+            } else {
+                //or call mempool set
+                app.network.protocol.sendOne(connectionInfo, 'getdata', {
+                    type: 'mempool'
+                });
 
-            app.network.protocol.sendOne(connectionInfo, 'getdata', {
-                type: 'state'
-            });
-
-            app.setSyncState("active");
+                app.setSyncState("active");
+            }
 
         }
 
@@ -422,7 +440,9 @@ module.exports = function (app) {
         //this node have less number block then in 
         app.network.protocol.sendAll('getdata', {
             type: 'blocks',
-            known: app.btcchain.getKnownRange(),
+            hashStart: app.btcchain.index.getTop().hash,
+            hashStop: 0,
+            offset: 0,
         });
 
     });

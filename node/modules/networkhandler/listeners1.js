@@ -26,7 +26,7 @@ module.exports = function (app) {
         if (!d.initiator) {
             app.network.protocol.sendOne(connectionInfo, 'version', {
                 version: app.cnf('consensus').version || 0,
-                lastblock: app.btcchain.index.getTop(),
+                lastblock: app.db.get('latest'),
                 nodekey: app.network.protocol.getNodeKey(),
                 agent: app.network.protocol.getUserAgent(),
                 timezone: 0
@@ -62,17 +62,17 @@ module.exports = function (app) {
         app.emit("protocol.node.added", key, app.network.protocol.getUniqAddress(key), selfMessage)
 
         var arr = [], isActiveNode = true;
-        if (app.btcchain.index.getTop().height > d.top.height) {
+        if (app.db.get('latest').number > d.top.number) {
 
             arr.push({
                 sendBack: true,
                 type: 'needupdate',
                 response: {
-                    lastblock: app.btcchain.index.getTop(),
-                    known: app.btcchain.getKnownRange(),
+                    lastblock: app.db.get('latest'),
+                    known: app.chain.getKnownRange(),
                 }
             })
-        } else if (d.top.height > app.btcchain.index.getTop().height) {
+        } else if (d.top.number > app.db.get('latest').number) {
             isActiveNode = false;
 
             arr.push({
@@ -80,9 +80,8 @@ module.exports = function (app) {
                 type: 'getdata',
                 response: {
                     type: 'blocks',
-                    hashStart: app.btcchain.index.getTop().hash,
-                    hashStop: 0,
-                    offset: 0,
+                    known: app.chain.getKnownRange(),
+                    offset: 0
                 }
             })
         }
@@ -93,7 +92,7 @@ module.exports = function (app) {
         if (app.getSyncState() == 'active' && !isActiveNode && !selfMessage)
             app.emit("app.chain.sync", { status: 'resync' });
 
-        if (d.top.height == app.btcchain.index.getTop().height) {
+        if (d.top.number == app.db.get('latest').number) {
             app.network.nodes.setState(connectionInfo, 'synced');
         }
 
@@ -124,7 +123,7 @@ module.exports = function (app) {
         }
 
         app.network.protocol.sendOne(connectionInfo, 'ping', {
-            latest: app.btcchain.index.getTop(),
+            latest: app.db.get('latest'),
         });
     });
 
@@ -139,24 +138,25 @@ module.exports = function (app) {
         app.network.nodes.set("data/" + key, d);
 
         let isActiveNode = true;
-        if (app.btcchain.index.getTop().height > message.latest.height) {
+        if (app.db.get('latest').number > message.latest.number) {
+
             if (app.getSyncState() == 'readyToSync')
                 app.emit("app.chain.sync", { status: 'success' });
 
             app.network.protocol.sendOne(connectionInfo, 'needupdate', {
-                hashStart: app.btcchain.index.getTop().hash,
+                lastblock: app.db.get('latest'),
+                known: app.chain.getKnownRange(),
             });
-        } else if (message.latest.height > app.btcchain.index.getTop().height) {
+        } else if (message.latest.number > app.db.get('latest').number) {
             isActiveNode = false;
             app.network.protocol.sendOne(connectionInfo, 'getdata', {
                 type: 'blocks',
-                hashStart: app.btcchain.index.getTop().hash,
-                hashStop: 0,
-                offset: 0,
+                known: app.chain.getKnownRange(),
+                offset: 0
             });
         }
 
-        if (message.latest.height == app.btcchain.index.getTop().height) {
+        if (message.latest.number == app.db.get('latest').number) {
             app.network.nodes.setState(connectionInfo, 'synced');
         }
 
@@ -195,18 +195,17 @@ module.exports = function (app) {
             //send now state to all connected nodes
             app.network.protocol.sendAll('getdata', {
                 type: 'blocks',
-                hashStart: app.btcchain.index.getTop().hash,
-                hashStop: 0,
-                offset: 0,
+                known: app.chain.getKnownRange(),
             });
         }
 
         if (data.state == 'active' && data.old == 'readyToSync') {
             //synced
+            //app.miner.start();
         }
 
         if (data.old == 'active' && data.state != 'active') {
-
+            app.miner.stop();
         }
 
     });
@@ -220,9 +219,9 @@ module.exports = function (app) {
         if (data.type == 'finished') {
             //emit data.data as blockJSON
             try {
-                let block = app.btcchain.addBlock(data.data, 'mining');
+                let block = app.chain.addBlock(data.data, 'mining');
                 if (block) {
-                    app.btcchain.sendBlock(block);
+                    app.chain.sendBlock(block);
                 }
             } catch (e) {
                 app.debug('warning', 'chain', 'double adding block', e.message);
@@ -245,26 +244,9 @@ module.exports = function (app) {
             if (app.network.nodes.getState(connectionInfo) == 'syncing')
                 return;
 
-            let startIndex = 0;
-            let stopIndex = 0;
-            let offsetIndex = 0;
-            let sendOffset = false;
-
-            startIndex = app.btcchain.index.get("block/" + message.hashStart).height;
-            if (message.hashStop)
-                stopIndex = app.btcchain.index.get("block/" + message.hashStop).height;
-            else
-                stopIndex = 0;
-
-            if (startIndex - stopIndex > app.cnf("consensus").syncmax) {
-                sendOffset = true;
-                offsetIndex = startIndex - app.cnf("consensus").syncmax;
-            } else
-                offsetIndex = stopIndex;
-
-            let range = [startIndex, offsetIndex];
+            let range = app.chain.getKnownRange();
             let first = range[0];
-            let last = range[1];
+            let last = range[0] - app.cnf('consensus').history;//consensus.history must be more then 2 * (pow.diffWindow + 2 * pow.diffCut + 10)//because after pow.diffWindow + 2 * pow.diffCut + 10 node can check next_difficulty value of block
             if (last < 0)
                 last = 0;
 
@@ -272,7 +254,7 @@ module.exports = function (app) {
                 return;//nothing todo here
 
             app.network.nodes.setState(connectionInfo, 'syncing');
-            let list = app.btcchain.getBlockList(first, last);
+            let list = app.chain.getBlockList(first, last);
 
             //start send range
             app.network.protocol.sendOne(connectionInfo, 'blocksync', {
@@ -287,21 +269,26 @@ module.exports = function (app) {
             //end send range 
             app.network.protocol.sendOne(connectionInfo, 'blocksync', {
                 'type': 'finish',
-                'hash': list[0].hash + list[list.length - 1].hash,
-                'hasNext': parseInt(sendOffset),
+                'hash': list[0].hash + list[list.length - 1].hash
             });
-
             app.network.nodes.setState(connectionInfo, 'synced');
 
         }
 
         if (message.type == 'mempool') {
 
-            let list = app.btcchain.getMemPool();
+            let list = app.chain.getMemPool();
 
             for (let i in list) {
                 app.network.protocol.sendOne(connectionInfo, 'mempool.tx', list[i]);
             }
+        }
+
+        if (message.type == 'state') {
+
+            let state = app.state.getLatest();
+            app.network.protocol.sendOne(connectionInfo, 'state', state);
+
         }
 
     });
@@ -325,32 +312,28 @@ module.exports = function (app) {
 
             for (let i in blocklist) {
                 try {
-                    app.btcchain.addBlock(blocklist[i], 'sync', { isWindowFirst: i == 0, syncNum: i });
+                    app.chain.addBlock(blocklist[i], 'sync', { isWindowFirst: i == 0, syncNum: i });
                 } catch (e) {
                     app.debug("error", "info", e.message);
                 }
             }
 
             //sort blockpool by number
+
             app.db.remove("sync/" + message.hash);
             app.db.remove("activesync");
 
             //call next offset, if have offset param
-            if (message.hasNext) {
-                app.network.protocol.sendOne(connectionInfo, 'getdata', {
-                    type: 'blocks',
-                    hashStart: app.btcchain.index.getTop().hash,
-                    hashStop: 0,
-                    offset: 0,
-                });
-            } else {
-                //or call mempool set
-                app.network.protocol.sendOne(connectionInfo, 'getdata', {
-                    type: 'mempool'
-                });
+            //or call mempool set
+            app.network.protocol.sendOne(connectionInfo, 'getdata', {
+                type: 'mempool'
+            });
 
-                app.setSyncState("active");
-            }
+            app.network.protocol.sendOne(connectionInfo, 'getdata', {
+                type: 'state'
+            });
+
+            app.setSyncState("active");
 
         }
 
@@ -369,9 +352,9 @@ module.exports = function (app) {
         } else {
             try {
                 app.debug('info', 'chain', message.number + "/" + message.hash);
-                let block = app.btcchain.addBlock(message, 'relay');
+                let block = app.chain.addBlock(message, 'relay');
                 if (block)
-                    app.btcchain.sendBlock(block);
+                    app.chain.sendBlock(block);
             } catch (e) {
                 if (e.code == 'alreadyexist')
                     app.debug('warning', 'chain', 'double adding block', e.message);
@@ -388,13 +371,13 @@ module.exports = function (app) {
         let errcode = '', errmsg = '';
         let invalid = false;
         try {
-            if (app.btcchain.addToMemPool(message, app.getSyncState() == 'active' ? 'mempool' : 'sync')) {
+            if (app.chain.addToMemPool(message, app.getSyncState() == 'active' ? 'mempool' : 'sync')) {
                 //emit for all
                 if (app.getSyncState() == 'active')
                     app.emit("app.chain.mempooltx", { tx: message });
 
                 if (app.getSyncState() == 'active')
-                    app.btcchain.sendTx(message);
+                    app.chain.sendTx(message);
             } else
                 invalid = true;
         } catch (e) {
@@ -454,9 +437,7 @@ module.exports = function (app) {
         //this node have less number block then in 
         app.network.protocol.sendAll('getdata', {
             type: 'blocks',
-            hashStart: app.btcchain.index.getTop().hash,
-            hashStop: 0,
-            offset: 0,
+            known: app.chain.getKnownRange(),
         });
 
     });
