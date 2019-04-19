@@ -454,7 +454,9 @@ module.exports = function (app) {
         //this node have less number block then in 
         app.network.protocol.sendAll('getdata', {
             type: 'blocks',
-            known: app.btcchain.getKnownRange(),
+            hashStart: app.btcchain.index.getTop().hash,
+            hashStop: 0,
+            offset: 0,
         });
 
     });
