@@ -10,13 +10,14 @@ module.exports = function (app) {
             let res = 0, err = [];
             for (let i in validator.rules) {
                 try {
-                    res += parseInt(validator.rules[i].apply(this.block, [this, this.context, this.app]));
+                    let r = validator.rules[i].apply(this.block, [this, this.context, this.app]);
+                    if (r)
+                        res += 1;
                 } catch (e) {
                     err.push(e.code)
                 }
             }
 
-            console.log('validator', res, Object.keys(validator.rules).length, err);
             return [res == Object.keys(validator.rules).length, err];
         }
         static addRule(name, fnc) {
