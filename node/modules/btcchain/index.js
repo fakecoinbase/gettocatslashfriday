@@ -559,7 +559,7 @@ class chain {
         return list;
     }
     getBlock(hash) {
-        let block = this.blockpool.get('block/' + hash);
+        let block = this.blockpool.getBlock(hash);
         if (!block)
             throw new Error('block ' + hash + ' is not exist');
         return block;
