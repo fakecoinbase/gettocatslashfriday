@@ -5,6 +5,7 @@
         "port": 19841,
         "magic": "ff3a2b1e",
         "nodes": [
+            "morty.node.orwellcoin.org//19841",
             "127.0.0.1//19841"
         ],
         "modules": [
