@@ -250,7 +250,7 @@ module.exports = function (app) {
             if (last < 0)
                 last = 0;
 
-            if (first == message.known[0])
+            if (app.btcchain.index.getTop().hash == message.hashStart)
                 return;//nothing todo here
 
             app.network.nodes.setState(connectionInfo, 'syncing');
