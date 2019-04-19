@@ -20,17 +20,23 @@ class app extends EventEmitter {
         this.miningstate = '';
         this.syncstate = '';
 
-        this.loadModule('config');
-        this.loadConfig(config);
+        this.loadModule('config')
+            .then(() => {
+                this.loadConfig(config);
 
-        //load system modules
-        let def = [
-            this.loadToolset('crypto'),
-            this.loadToolset('tools'),
-            this.loadModule('db'),
-        ];
+                //load system modules
+                let def = [
+                    this.loadToolset('crypto'),
+                    this.loadToolset('tools'),
+                    this.loadModule('db'),
+                ];
 
-        Promise.all(def)
+                return Promise.all(def)
+            })
+            .then(() => {
+                this.emit("_caninit");
+            })
+
     }
     debug(level, module_name, text) {
 
@@ -50,15 +56,29 @@ class app extends EventEmitter {
     }
     init(modules) {
 
-        if (!modules)
-            modules = this.cnf('modules');
+        return new Promise((res) => {
 
-        return this.loadModules(modules)
-            .then((results) => {
-                this.debug('info', "app", 'loaded all modules; sending init event');
-                this.emit("init", results);
-                return Promise.resolve(results);
+            this.on("_caninit", () => {
+                if (!modules)
+                    modules = this.cnf('modules');
+
+                return this.loadModules(modules)
+                    .then((results) => {
+                        this.debug('info', "app", 'loaded all modules; sending init event');
+                        this.emit("init", results);
+                        res(results);
+                    })
+                    .catch((e) => {
+                        throw e;
+                    })
             })
+
+        });
+
+    }
+    throwErrorByCode(module, code) {
+        let err = this[module]['errors'][code];
+        this.throwError(err[1], err[0], err[2]);
     }
     throwError(message, code, details) {
         throw (
@@ -70,7 +90,16 @@ class app extends EventEmitter {
         );
     }
     loadModules(arr) {
-        let list = [];
+
+        let prevState = false;
+        for (let i = 0; i < arr.length; i++) {
+            if (arr[i] instanceof Array)
+                prevState = this.loadModule(arr[i][0], arr[i][1], prevState)
+            else
+                prevState = this.loadModule(arr[i], false, prevState)
+        }
+
+        /*let list = [];
         for (let i in arr) {
             if (arr[i] instanceof Array)
                 list.push(this.loadModule(arr[i][0], arr[i][1]))
@@ -78,9 +107,22 @@ class app extends EventEmitter {
                 list.push(this.loadModule(arr[i]))
         }
 
-        return Promise.all(list)
+        let res = new Promise(function (result) {
+            list[0].then(() => {
+                result()
+            });
+        });
+
+        for (let i in list) {
+            res = res.then((r) => {
+                return list[i + 1];
+            });
+        }*/
+
+        return prevState;
+        //return Promise.all(list)
     }
-    loadModule(name, modulepath) {
+    loadModule(name, modulepath, prevState) {
         let filepath = path.resolve(name);
         if (!modulepath) {
             filepath = this.cwd + "modules/" + name;
@@ -88,22 +130,34 @@ class app extends EventEmitter {
             filepath = modulepath;
         }
 
-        let res = null;
-        let cls = require(filepath + '/index');
-        this[name] = new cls(this, name);
-        if (this[name].init instanceof Function && this.isTestInstanceForModule(name))
-            res = this[name].init();
-        this.debug('info', name, 'loaded');
-        this.emit("module.loaded", {
-            module: name,
-            object: this[name]
+        if (!(prevState instanceof Promise))
+            prevState = Promise.resolve();
+
+        let rs = prevState.then(() => {
+            let res = null;
+            let cls = require(filepath + '/index');
+            this[name] = new cls(this, name);
+            if (this[name].init instanceof Function && this.isTestInstanceForModule(name))
+                res = this[name].init();
+
+            let rs;
+            if (res instanceof Promise)
+                rs = res;
+            else
+                rs = Promise.resolve(res);
+
+            return rs;
         });
 
-        if (res instanceof Promise)
-            return res;
-        else
-            return Promise.resolve(res);
+        return rs.then((RES) => {
+            this.debug('info', name, 'loaded');
+            this.emit("module.loaded", {
+                module: name,
+                object: this[name]
+            });
 
+            return Promise.resolve(RES);
+        });
     }
     loadToolset(name, modulepath) {
         let filepath = path.resolve(name);
@@ -196,4 +250,6 @@ class app extends EventEmitter {
     }
 }
 
+
+app.cli = require('./cli.js');
 module.exports = app;

@@ -13,7 +13,7 @@ class handler {
 
         });
 
-        require('./listeners')(this.app);
+        require('./listeners'+this.app.cnf('network'))(this.app);
 
     }
 

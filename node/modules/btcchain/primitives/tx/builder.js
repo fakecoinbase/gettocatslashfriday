@@ -69,6 +69,7 @@ class builder {
                     else
                         throw e;
                 }
+
                 if (!this.app.btcchain.ADDRESS.isValidAddress(addr))
                     throw new Error('invalid address field for tx.out[' + i + ']');
             }
@@ -152,10 +153,12 @@ class builder {
 
                 let databuff = null;
                 if (this.coinBaseData) {
-                    databuff = this.coinBaseData;
                     if (!(this.coinBaseData instanceof Buffer) && !(typeof this.coinBaseData == 'string'))
                         throw new Error("only byteorder or string allowed in coinbase data");
-                    databuff = new Buffer(this.coinBaseData, 'hex');
+                    if (typeof this.coinBaseData == 'string')
+                        databuff = new Buffer(this.coinBaseData);
+                    else
+                        databuff = new Buffer(this.coinBaseData, 'hex');
                 }
 
                 write.tx_in("0000000000000000000000000000000000000000000000000000000000000000", 0xffffffff, databuff, this.coinBaseSequence, true);

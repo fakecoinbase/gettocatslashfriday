@@ -8,25 +8,54 @@
             "127.0.0.1//19841"
         ],
         "modules": [
-            "networkhandler",
-            "wallet",
             "storage",
-            "btcchain"
+            "pow",
+            "wallet",
+            "rpc",
+            "btcchain",
+            "networkhandler",
+            "network"
         ],
         "consensus": {
             "version": 1,
             "algo": "pow",
+            "powVersion": "bitcoin",
             "blockEvery": 60,
+            "blockSize": 1e7,
             "data.timeout": 300,
             "history": 300,
-            "nopeerstimeout": 15000
+            "nopeerstimeout": 15000,
+            "satoshi": 1e8,
+            "maxcoins": 20e6,
+            "premine": 200,
+            "emission": {
+                "0": 50,
+                "1-190": 100,
+                "191-199,height": 13500,
+                "200": 15000,
+                "201-10000": 5,
+                "10001-110000": 60,
+                "110001-210000": 30,
+                "210001-410000": 15,
+                "410001-1010000": 10
+            },
+            "genesisMode": false,
+            "syncmax": 200
         },
         "pow": {
-            "algo": "sha256",
-            "target": 60,
+            "algo": "sha256d",
+            "maxTarget": 250,
+            "target": 300,
             "diffWindow": 120,
             "diffLag": 2,
             "diffCut": 6
+        },
+        "btcpow": {
+            "premine": 199,
+            "blockcount": 12,
+            "maxtarget": "0x1d00ffff",
+            "blockfreq": 300,
+            "excludeFirst": 1
         },
         "node": {
             "publicKey": "04aa443931cceeadbbf591f60dceb47b7051045c29d3130203532e7112fbe6a6e92af3ee724be384903c7220998386835864aa63e5a14513d4704777119dacdb94",
@@ -36,7 +65,41 @@
             "network": true,
             "protocol": true,
             "peers": true,
-            "handler": true
+            "handler": true,
+            "blockchain_sync": true,
+            "utxo": true,
+            "indexing": true,
+            "rpc": true
+        },
+        "genesis": {
+            "header": {
+                "hash": "0000000013125a30d472be057a704d306ae52766b966c4ef308aeda576ccc319",
+                "version": 1,
+                "bits": 486604799,
+                "nonce": 2072259928,
+                "time": 1551127186,
+                "hashPrevBlock": "0000000000000000000000000000000000000000000000000000000000000000",
+                "hashMerkleRoot": "99501f01a04ded4f86d3a631a26921776102de20b04060925d81590a3c304f11"
+            },
+            "txlist": [
+                "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1e0100045253745c084fffffe8070000000d2f6e6f64655374726174756d2f000000000200111024010000001976a914b96d613764d55f0866c6f0445166ad729a0b2a1088ac00e1f505000000001976a914bab86ae181e4a7886627abe9126cfae65ec7086788ac00000000"
+            ]
+        },
+        "rpc": {
+            "server": {
+                "port": 41991,
+                "host": "127.0.0.1",
+                "path": "/",
+                "strict": false,
+                "ssl": null
+            },
+            "client": {
+                "port": 41991,
+                "host": "127.0.0.1",
+                "path": "/",
+                "strict": false,
+                "ssl": null
+            }
         }
     },
     "agent": {

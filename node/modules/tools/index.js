@@ -5,8 +5,8 @@
 * Copyright (c) 2017 Nanocat <@orwellcat at twitter>
 */
 
-var Uint64LE = require("int64-buffer").Uint64LE;
-var bitPony = require('bitpony')
+const Uint64LE = require("int64-buffer").Uint64LE;
+const bitPony = require('bitpony')
 const merkle = require('./merkle');
 
 module.exports = util = {
@@ -96,6 +96,6 @@ module.exports = util = {
     },
     emptyObject: function(obj){
         return Object.keys(obj).length === 0 && obj.constructor === Object
-    }
-
+    },
+    bitPony: bitPony
 }

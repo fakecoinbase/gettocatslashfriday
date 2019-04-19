@@ -37,7 +37,7 @@ class txParser {
         return this.body;
     }
     getHash() {
-        return app.btcchain.hash(this.raw).toString('hex');
+        return this.app.tools.reverseBuffer(this.app.btcchain.hash(this.raw)).toString('hex');
     }
     toJSON() {
 
@@ -54,11 +54,14 @@ class txParser {
         }*/
 
         for (var i in this.body['out']) {
+            this.body['out'][i].address = this.app.btcchain.SCRIPT.scriptToAddr(this.app, this.body.coinbase ? this.body['out'][i].scriptPubKey : this.body['out'][i].script);
             outval += this.body['out'][i].amount;
         }
 
         json.fee = this.fee = inval / outval;
         json.size = this.size = new Buffer(this.raw).length;
+        if (!this.body.hash)
+            this.body.hash = json.hash = this.getHash();
         return json;
     }
     fromJSON(json_str) {
@@ -71,6 +74,7 @@ class txParser {
 
         this.size = json_str.size;
         this.fee = json_str.fee;
+        this.body = json_str;
         this.raw = buff.toString('hex');
         return this;
     }

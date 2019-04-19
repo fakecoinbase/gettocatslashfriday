@@ -109,8 +109,8 @@ class TX {
         return this.raw = this.builder.getSigned()
 
     }
-    getId() {
-        if (!this.id) {
+    getId(forse) {
+        if (!this.id || forse) {
 
             if (!this.raw)
                 this.toHex();
@@ -223,42 +223,51 @@ TX.fromHEX = function (app, hex) {
     return tx;
 }
 
-/*
-TX.create = function (app, data, keystore) {
-    if (!keystore && !keystore.privateKey) {
-        keystore = app.wallet.findAddrByAccount("0");
-    }
-
-    return new TX(app, data, 'create', keystore);
 
 TX.validate = function (app, tx, type, context) {
     //context.trigger is mempool|sync|blockvalidate - mempool is new tx, sync is tx from syncing node, blockvalidate - validate in block-validating, context in this case have context.parent (block context.trigger) 
     if (!type)
         type = 'common';//coinbase|common
 
-    //valid time
-    const week = 7 * 24 * 60 * 60;
-    if ((tx.timestamp <= 0 && type !== 'coinbase') || tx.timestamp > (Date.now() / 1000 + week))
-        return { error: true, message: 'Invalid timestamp of tx ' + tx.hash, code: 'invalid-timestamp' };
-
     //valid key same:
     //valid signature
-    let txver = new txverifier(app, tx);
+    //todo:
+    let txver = new Verifier(app, tx);
     if (!txver.isVerified())
         return { error: true, message: 'Tx sign is not valid for ' + tx.hash, code: 'invalid-sign' };
 
     //valid hash
-    if (tx.buildHash() != tx.hash)
+    if (tx.getId(true) != tx.hash)
         return { error: true, message: 'Tx hash is not valid for ' + tx.hash, code: 'invalid-hash' };
 
     //todo: context
-    let errors = txRules.check(tx, context);
+    let errors = Rules.check(tx, context);
 
     if (!errors.length) {
         return { error: false };
     } else
         return errors;
-}*/
+}
+
+class Verifier {
+
+    constructor(app, tx) {
+        this.app = app;
+        this.data = tx;
+
+        if (!this.data)
+            throw new Error('Txdata is required for tx');
+
+        this.verified = true;
+        this.verify();
+    }
+    verify() {
+
+    }
+    isVerified() {
+        return this.verified;
+    }
+}
 
 let Rules = {
 
@@ -288,5 +297,6 @@ let Rules = {
 TX.rules = Rules;
 TX.parser = txparser;
 TX.builder = txbuilder;
+TX.verifier = Verifier;
 
 module.exports = TX;

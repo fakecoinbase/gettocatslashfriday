@@ -8,22 +8,29 @@ class network {
         this.inited = false;
     }
     init() {
-        this.inited = true;
-        this.separator = () => { return this.app.cnf(this.app.cnf('network')).magic };
-        this.port = () => { return this.app.cnf(this.app.cnf('network')).port };
-        const NODES = require('./nodes');
-        this.nodes = new NODES(this.app);
-        let cls = require('./p2p');
-        this.p2p = new cls(this.app);
-        let cls2 = require('./protocol');
-        this.protocol = new cls2(this.app, this.nodes)
-        //nodes
-        this.app.debug('info', 'network', 'setting up network eventlisteners')
-        this.setUp();
-        this.app.debug('info', 'network', 'initialize server')
-        this.initServer();
-        this.app.debug('info', 'network', 'initialize client')
-        this.initClient();
+
+        return new Promise((resolve, reject) => {
+
+            this.inited = true;
+            this.separator = () => { return this.app.cnf(this.app.cnf('network')).magic };
+            this.port = () => { return this.app.cnf(this.app.cnf('network')).port };
+            const NODES = require('./nodes');
+            this.nodes = new NODES(this.app);
+            let cls = require('./p2p');
+            this.p2p = new cls(this.app);
+            let cls2 = require('./protocol');
+            this.protocol = new cls2(this.app, this.nodes)
+            //nodes
+            this.app.debug('info', 'network', 'setting up network eventlisteners')
+            this.setUp();
+            this.app.debug('info', 'network', 'initialize server')
+            this.initServer();
+            this.app.debug('info', 'network', 'initialize client')
+            this.initClient();
+
+            resolve();
+
+        });
 
     }
     setUp() {
@@ -129,7 +136,7 @@ class network {
                         var addr = interfaces[k][k2];
                         if (addr.family === 'IPv4') {
                             addresses.push(addr.address);
-                            if (addr.address == address || addr.address == address.replace("::ffff:",""))
+                            if (addr.address == address || addr.address == address.replace("::ffff:", ""))
                                 finded = true;
                         }
                     }

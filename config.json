@@ -39,7 +39,10 @@
             "network": true,
             "protocol": true,
             "peers": true,
-            "handler": true
+            "handler": true,
+            "blockchain_sync": true,
+            "utxo": true,
+            "indexing": true
         }
     },
     "agent": {

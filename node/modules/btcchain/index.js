@@ -1,5 +1,7 @@
+const crypto = require('crypto');
 
 class chain {
+
     constructor(app) {
         //this.BLOCK = require('./primitives/block')
         //this.GENESIS = require('./primitives/genesis')
@@ -7,35 +9,468 @@ class chain {
         //let indexClass = require('./indexer');
         //this.index = new indexClass(app);
 
-        this.app = app;
-        this.hash = (bufferOrString) => {
-            return this.app.crypto.sha256(this.app.crypto.sha256(new Buffer(bufferOrString, 'hex')));
+        this.errors = {
+            'not_tx_obj': [-101, 'Invalid tx object'],
+            'invalid_txlist': [-201, 'Invalid txlist format for block json data']
         }
 
+        this.app = app;
+        this.hash = (bufferOrString) => {
+            return crypto.createHash('sha256').update(crypto.createHash('sha256').update(new Buffer(bufferOrString, 'hex')).digest()).digest();
+            //return this.app.crypto.sha256(this.app.crypto.sha256(new Buffer(bufferOrString, 'hex')));
+        }
+
+        this.GENESIS = this.app.cnf("genesis");
         this.ADDRESS = require('./primitives/address');
         this.SCRIPT = require('./primitives/script');
         this.TX = require('./primitives/tx');
+        this.BLOCK = require('./primitives/block');
+        this.BLOCK.VALIDATOR = require('./primitives/block/validator')(app);
+        let bp = require('./primitives/blockpool');
+
+        this.prepare();
+
+        if (this.app.cnf('debug').indexing)
+            this.app.debug("info", "btcchain", "storage loaded, can load indexes")
+        //this entity can be loaded after db initialization.
+        let BLOCKPOOL = bp(app);
+        let inds = require('./indexer');
+        let utxo_ = require('./utxo');
+        let MiningWork = require('./work')(app);
+        let index = inds(app);
+        let UTXO = utxo_(app);
+
+        this.blockpool = new BLOCKPOOL();
+        this.index = new index();
+        this.utxo = new UTXO();
+
+        this.miningWork = new MiningWork();
+
+    }
+    prepare() {
+
+        this.BLOCK.VALIDATOR.addRule('', function (validator, context, app) {
+            let block = this;
+
+            //app.throwError("msg", 'code');
+            return true;
+        });
+
+
+        this.app.tools.bitPony.extend('orwell_block', () => {//datascript...
+
+            return {
+                read: (buffer, rawTx) => {
+                    if (typeof buffer == 'string')
+                        buffer = new Buffer(buffer, 'hex')
+
+                    if (buffer.length == 0 || !buffer)
+                        buffer = new Buffer([0x0]);
+
+                    let offset = 0, stream = new this.app.tools.bitPony.reader(buffer);
+                    let block = {}
+                    let res = stream.header(offset);
+                    offset = res.offset;
+                    block.header = res.result;
+
+                    let tx = [];
+
+                    for (let i = 0; i < block.header.txn_count; i++) {
+
+                        let startoffset = offset;
+                        res = stream.tx(offset);
+                        offset = res.offset;
+                        let tx_item;
+                        let dsstart = offset;
+
+                        if (buffer[offset] == 0xef) {//have datascript array
+                            res = stream.var_int(offset + 1)
+                            offset = res.offset;
+                            let script_cnt = res.result;
+                            let scripts = [];
+                            for (let k = 0; k < script_cnt; k++) {
+                                res = stream.string(offset);
+                                offset = res.offset;
+                                scripts.push(res.result)
+                            }
+                        } else if (buffer[offset] == 0xee) {//have datascript
+                            res = stream.uint8(offset + 1);
+                            offset = res.offset;
+                            res = stream.string(offset);
+                            offset = res.offset;
+                            res = stream.string(offset);
+                            offset = res.offset;
+                        }
+
+                        if (offset > dsstart && !rawTx)
+                            tx_item.datascript = buffer.slice(dsstart, offset).toString('hex');
+
+                        if (rawTx)
+                            tx_item = buffer.slice(startoffset, offset).toString('hex');
+
+                        tx.push(tx_item)
+                    }
+
+                    block.txn_count = tx.length;
+                    block.txns = tx;
+                    return block
+
+                },
+                write: (block) => {
+
+                    let header = this.app.tools.bitPony.header.write(block.version, block.prev_block || block.hashPrevBlock, block.merkle_root || block.hashMerkleRoot || block.merkle, block.time, block.bits, block.nonce);
+                    let length = this.app.tools.bitPony.var_int(block.vtx.length);
+                    let txlist = new Buffer('');
+
+                    for (let i in block.vtx) {
+                        txlist += new Buffer(block.vtx[i].toHex(), 'hex');
+                    }
+
+                    return Buffer.concat([
+                        header,
+                        length,
+                        txlist
+                    ])
+
+                }
+            }
+
+        });
     }
     init() {
-        /*this.app.setSyncState('loadFromCache');
+        return new Promise((res) => {
+            this.app.setSyncState('loadFromCache');
 
-        if (!this.loadBlocksFromFile()) {
-            this.generateGenesisBlock();
-        }
-        //if not have in file - generate genesis
-        //this need update from network
+            if (!this.loadBlocksFromFile()) {
+                this.generateGenesisBlock();
+            }
+            //if not have in file - generate genesis
+            //this need update from network
 
-        //reindex blocks, save to storage
-        //generate state
-        this.index.create();
-        this.app.setSyncState('readyToSync')*/
+            //reindex blocks, save to storage
+            this.app.setSyncState('readyToSync')
+            res();
+
+            require('./rpc.methods')(this.app);
+            this.app.rpc.start();
+
+        });
     }
     loadBlocksFromFile() {
-        this.app.db.load('chain.json', 'blocks');
-        this.app.db.load('mempool.json', 'mempool');
+        this.sync();
         this.initMemPool();
         this.updateLatestBlock();
-        return this.app.db.get('latest').number >= 0;
+        return this.index.get('top').height >= 0;
+    }
+    sync() {
+
+        if (this.app.cnf("consensus").genesisMode)
+            this.blockpool.clear();
+
+        let commonCnt = this.blockpool.blockCount(), m = 0;
+
+        if (this.app.cnf('debug').blockchain_sync)
+            this.app.debug("info", "btcchain", "blockchain local sync: finded " + commonCnt + " records, reading:");
+
+        let offset = 0, cnt = 1000, blocks = [];
+        let arr = this.blockpool.loadBlocks(commonCnt);//asc//todo, fix limit,offset
+
+        for (let i in arr) {
+            if (arr[i]) {
+                let b = this.BLOCK.fromJSON(this.app, arr[i]);
+                blocks.push(b);
+                m++;
+
+                if (this.app.cnf('debug').blockchain_sync)
+                    this.app.debug("info", "btcchain", "blockchain local sync: " + (parseInt((m / commonCnt) * 100)) + "%");
+            }
+        }
+
+        if (this.app.cnf('debug').blockchain_sync)
+            this.app.debug("info", "btcchain", "blockchain local sync: 100%");
+
+        if (!Object.keys(blocks).length && !this.app.cnf("consensus").genesisMode) {
+            let gen = new this.BLOCK(this.app, this.GENESIS.header, this.GENESIS.txlist);
+            let b = this.blockpool.get(gen.getHash('hex'));
+            if (!b || !b.hash) {
+                this.index.updateTop({ hash: gen.hash, height: 0 });
+                gen.height = gen.index = 0;
+                gen.genesis = 1;
+                blocks.push(gen);
+                this.appendBlock(gen, 1);
+            }
+        }
+
+
+        this.indexBlocks(blocks);
+    }
+    appendBlock(block, isgenesis, cb) {
+        if (!block instanceof this.BLOCK)
+            throw new Error('block object must be instanceof Block class to appending in Blockchain');
+
+        let b = false;
+        try {
+            b = this.getBlock(block.hash);
+            block.validation_errors = [];
+            block.validation_errors.push('duplicate');
+        } catch (e) {
+
+        }
+        if (b && b.hash) {
+            if (cb instanceof Function)
+                cb(block, 1, 1);
+            return;
+        }
+
+        let prevblockinfo = this.index.get("block/" + block.hashPrevBlock);
+        let blockvalid = block.isValid()
+
+        if (block.hash == this.GENESIS.header.hash)
+            isgenesis = 1;
+
+        let inMainChain = 0;
+        if (blockvalid && !isgenesis) {
+            let top = this.index.get('top').hash;
+            this.indexBlock(block, { height: prevblockinfo.height + 1, events: this.action == 'seek' });
+
+            block.height = prevblockinfo.height + 1;
+            if (block.hashPrevBlock == top) {
+                this.index.updateTop({
+                    hash: block.hash,
+                    height: prevblockinfo.height + 1
+                });
+
+            }
+
+            inMainChain = 1;
+            this.blockpool.save(block.toJSON());
+        } else if (isgenesis) {
+            this.index.setContext(0)
+            this.indexBlock(block, { height: 0, events: false });
+            this.index.setContext(null)
+
+            this.index.updateTop({
+                hash: block.hash,
+                height: 0
+            });
+
+            inMainChain = 1;
+            this.blockpool.save(block.toJSON());
+        }
+
+        if (cb instanceof Function)
+            cb(block, 0, inMainChain);
+    }
+    indexBlock(block, context) {
+        let b = block.toJSON();
+        for (let i in b.tx) {
+            let tx = b.tx[i];
+            this.index.set("tx/" + tx.hash, { block: b.hash, index: i });
+            if (tx.hash) {
+                this.utxo.addTx(tx);
+
+                if (i != 0 && tx.coinbase)
+                    throw new Error('coinbase tx can not be not first in list of block tx');//resync or maybe something like this
+
+                if (i == 0 && tx.coinbase) {//so.. havent inputs
+                    let out = tx.out[0];
+                    this.addOutIndex({
+                        type: 'input',
+                        hash: tx.hash,
+                        address: out.address,
+                        amount: out.amount,
+                        events: context.events
+                    });
+                } else {
+                    for (let o in tx.out) {
+                        let out = tx.out[o];
+                        this.addOutIndex({
+                            type: 'input',
+                            index: o,
+                            hash: tx.hash,
+                            address: out.address,
+                            amount: out.amount,
+                            events: context.events
+                        });
+                    }
+
+                    for (let inp in tx.in) {
+                        let inpt = tx.in[inp];
+                        let prevout = this.getOut(inpt.hash, inpt.index);
+                        if (prevout !== false)
+                            this.addOutIndex({
+                                type: 'output',
+                                hash: tx.hash,
+                                index: inp,
+                                address: prevout.address,
+                                amount: prevout.amount,
+                                events: context.events
+                            });
+                    }
+
+                    if (tx.datascript) {
+                        this.addDSIndex({ hash: tx.hash, out: tx.out[0], events: context.events })
+                    }
+
+                    //TODO: remove from mempool
+                    //var mempool = require('../db/entity/tx/pool')
+                    //mempool.removeTx(tx.hash)
+                }
+
+
+            }
+        }
+
+        this.index.set("index/" + context.height, b.hash);
+        this.index.set("prev/" + b.hash, b.hashPrevBlock);
+        this.index.set("time/" + b.hash, b.time);
+        this.index.set("block/" + b.hash, {
+            prev: b.hashPrevBlock,
+            height: context.height
+        });
+    }
+    indexBlocks(blocks) {
+        let last = 0, dbheight = 0, m = 0, commonCnt = blocks.length, synced = false;
+
+        if (this.app.cnf('debug').indexing)
+            this.app.debug("info", "btcchain", "blockchain indexing: started");
+
+        if (blocks.length > 0)
+            if (this.index.get('top').hash == blocks[blocks.length - 1].hash)
+                synced = true;
+
+        if (blocks.length <= 0)
+            synced = true;
+
+        if (synced) {
+            if (this.app.cnf('debug').indexing)
+                this.app.debug("info", "btcchain", "blockchain indexing: already synced");
+        } else {
+            for (let i in blocks) {
+                let b = blocks[i];
+
+                if (!b)
+                    continue;
+
+                if (!(b instanceof this.BLOCK)) {
+                    let b1 = new this.BLOCK(this.app);
+                    b = b1.fromJSON(b);
+                }
+
+                if (this.app.cnf('debug').indexing && m % 100 == 0)
+                    this.app.debug("info", "btcchain", "blockchain indexing: " + (parseInt((m / commonCnt) * 100)) + "%");
+
+                this.index.setContext(dbheight);
+                this.indexBlock(b, { height: dbheight, events: false, state: 'sync' }, false);
+                this.index.setContext(null);
+
+                //todo add txHash -> block hash to find tx fast
+                last = b.getHash('hex');
+                dbheight++;
+                m++;
+            }
+
+            if (this.app.cnf('debug').indexing)
+                this.app.debug("info", "btcchain", "blockchain indexing: done. head block: " + last + ", height: " + (dbheight - 1));
+
+            if (last)
+                this.index.updateTop({
+                    hash: last,
+                    height: dbheight - 1,
+                })
+        }
+    }
+    getBlock(hash) {
+        let block = this.blockpool.getBlock(hash)
+        if (block.hash) {
+            delete block.meta
+            delete block.$loki;
+            block.confirmation = this.index.get('top').height - block.height + 1;
+        }
+
+        return block;
+    }
+    getTx(hash) {
+        let txk = this.index.get("tx/" + hash);
+
+        if (txk) {
+            let b = this.getBlock(txk.block);
+            let tx = b.tx[txk.index];
+            tx.confirmation = this.index.get('top').height - b.height + 1;
+            tx.fromBlock = b.hash;
+            tx.fromIndex = txk.index;
+            tx.time = b.time;
+            return tx;
+        } else {
+            throw new Error('can not find tx ' + hash);
+            //do inv with this hash
+            //return null;
+        }
+
+    }
+    getOut(hash, index_cnt) {
+        if (hash == "0000000000000000000000000000000000000000000000000000000000000000" && index_cnt == 0xffffffff)
+            return false;
+        let tx = this.getTx(hash);
+        return tx.out[index_cnt];
+    }
+    addOutIndex(data) {
+        if (this.app.cnf('debug').blockchain_sync)
+            this.app.debug("info", "btcchain", "add index " + data.address, data.hash, data.amount)
+
+        let addrind = this.index.get("address/" + data.address);
+        if (!addrind || !(addrind instanceof Array))
+            addrind = [];
+
+        let finded = 0;
+        for (let i in addrind) {
+            let _inx = addrind[i];
+            if (_inx == data.hash && _inx.index == data.index) {
+                finded = 1;
+                break;
+            }
+        }
+
+        if (finded)
+            return addrind;
+
+        let obj = {
+            type: data.type, //input||output
+            tx: data.hash,
+            amount: data.amount
+        };
+        addrind.push(obj);
+
+        if (data.events) {
+            obj.address = data.address;
+            app.emit("chain.event.address", obj)
+        }
+
+        this.index.set("address/" + data.address, addrind)
+        return addrind
+    }
+    addDSIndex(context) {
+        context.out.address = this.SCRIPT.scriptToAddr(context.out.scriptPubKey);
+        context.out.addrHash = this.SCRIPT.scriptToAddrHash(context.out.scriptPubKey).toString('hex');
+
+        if (this.app.cnf('debug').indexing)
+            this.app.debug("info", "btcchain", "add ds index " + context.out.addrHash, context.hash);
+
+        let addrind = this.index.get("ds/address/" + context.out.addrHash);
+        if (!addrind || !(addrind instanceof Array))
+            addrind = [];
+
+        addrind.push(context.hash);
+
+        if (context.events) {
+            this.app.emit("chain.event.ds", {
+                address: context.out.addrHash,
+                txid: context.hash
+            })
+        }
+
+        this.index.set("ds/address/" + context.out.addrHash, addrind)
+        return addrind
     }
     initMemPool() {
         let list = this.app.db.get('mempool');
@@ -56,29 +491,32 @@ class chain {
         return res;
     }
     generateGenesisBlock() {
-        let tx = this.GENESIS.tx[0];
-        let block = new this.BLOCK.fromJSON(this.app, this.GENESIS);
-        //block.appendTx(this.TX.fromJSON(this.app, tx));
+        let tx = this.GENESIS.txlist;
+        let data = this.GENESIS.header;
+        data.tx = tx;
 
-        let list = [block.toJSON()];
-        this.app.db.set("blocks", list);
-        this.app.db.save('blocks', 'chain.json');
+        let block = this.BLOCK.fromJSON(this.app, data);
+        this.blockpool.clear();
+
+        this.blockpool.save(block.toJSON());
+
         this.updateLatestBlock();
     }
     updateLatestBlock() {
-        if (this.app.db.get('blocks').length > 0) {
+        if (this.blockpool.blockCount() > 0) {
+            let latest = this.blockpool.getLastBlock();
             let b = {
-                hash: this.app.db.get('blocks')[0].hash,
-                number: this.app.db.get('blocks')[0].number
+                hash: latest.hash,
+                height: latest.height || 0
             }
-            this.app.debug("info", "chain", "new top", b);
-            this.app.db.set("latest", b);
-            this.app.emit("app.chain.latest", b);
+            this.app.debug("info", "btcchain", "new top", b);
+            this.index.updateTop(b);
+            this.app.emit("app.btcchain.latest", b);
         }
     }
     getKnownRange() {
-        let first = this.app.db.get('blocks')[0].number;
-        let last = this.app.db.get('blocks')[this.app.db.get('blocks').length - 1].number;
+        let first = this.blockpool.getLastBlock().index || 0;
+        let last = this.blockpool.getFirstBlock().index || 0;
         return [first, last];
     }
     inKnownRange(range) {
@@ -87,49 +525,53 @@ class chain {
     }
     getWindowRange(from) {
         if (!from)
-            from = this.app.db.get('latest').number;
+            from = this.index.getTop().height;
         let to = from - (this.app.cnf('pow').diffWindow + 2 * this.app.cnf('pow').diffCut);
         if (to < 0)
             to = 0;
         return [from, to];
     }
     getBlockList(numberFrom, numberTo) {
-        const index = this.index.getLatest();
-        let hash = index['block/number/' + numberFrom];
+        let hash = this.index.get('index/' + numberFrom);
         if (!hash) {
             numberFrom -= 1;
-            hash = index['block/number/' + (numberFrom)];
+            hash = this.index.get('index/' + (numberFrom));
         }
-        let hashTo = index['block/number/' + numberTo];
-        let prevhash = index['block/prev/' + hash];
-        let block = index['block/' + hash];
+
+        if (numberTo < 0)
+            numberTo = 0;
+        let hashTo = this.index.get('index/' + numberTo);
+        let prevhash = this.index.get('block/' + hash).prev;
+
+        let block = this.getBlock(hash);
         if (hash == hashTo)
             return [block];
 
 
         let list = [block];
         do {
-            hash = index['block/prev/' + hash];
-            prevhash = index['block/prev/' + hash];
-            block = index['block/' + hash];
+            hash = this.index.get('block/' + hash).prev;
+            prevhash = this.index.get('block/' + hash).prev;
+            block = this.getBlock(hash);
             list.unshift(block);
-        } while (hash != hashTo && hash != this.GENESIS.hash);
+        } while (hash != hashTo && hash != this.GENESIS.header.hash);
 
         return list;
     }
     getBlock(hash) {
-        const index = this.index.getLatest();
-        let block = index['block/' + hash];
+        let block = this.index.get('block/' + hash);
         if (!block)
             throw new Error('block ' + hash + ' is not exist');
         return block;
     }
     getBlockNumber(hash) {
-        const index = this.index.getLatest();
-        let blockNumber = index['number/' + hash];
+        let blockNumber = this.index.get('index/' + hash);
         if (!blockNumber && blockNumber != 0)
             throw new Error('block ' + hash + ' is not exist');
         return blockNumber;
+    }
+    getCount() {
+        return this.blockpool.blockCount();
     }
     getTimestampsWindow(from) {
         let range = this.getWindowRange(from);
@@ -139,11 +581,6 @@ class chain {
         for (let i in blocks) {
             timestamps.push(blocks[i].timestamp);
         }
-
-        //sort ?
-        return timestamps.sort(function (a, b) {
-            return a - b;
-        });
     }
     getDifficultiesWindow(from) {
         let range = this.getWindowRange(from);
@@ -157,6 +594,27 @@ class chain {
         }
 
         return diffs;
+    }
+    getActualDiff() {
+        let last_inx = this.index.get('top').height;
+        let first_inx = last_inx - this.app.cnf("btcpow").blockcount;
+        if (first_inx < 0)
+            first_inx = 0;
+
+        let list = this.getBlockList(last_inx, first_inx)//one hour
+        let first = list[list.length - 1];
+        let last = list[0];
+        //console.log(first.height, last.height, last.time - first.time);
+
+        if (last.height < this.app.cnf("btcpow").premine)
+            return parseInt(this.app.cnf("btcpow").maxtarget, 16);
+
+        if (!list.length || list.height == 0)//genesis check
+            return parseInt(this.app.cnf("btcpow").maxtarget, 16);
+
+        // Limit adjustment step
+        let nActualTimespan = last.time - first.time;
+        return this.app.pow.getBitsRange(nActualTimespan, last);
     }
     existHashInMemPool(hash) {
         let list = this.getMemPool();
@@ -229,42 +687,44 @@ class chain {
         return list;
     }
     getBlockPool() {
-        let list = this.app.db.get('blocks');
-        if (!list || this.app.tools.emptyObject(list))
-            list = [];
-        return list;
+        return this.blockpool;
     }
     existBlock(hash) {
-        let list = this.getBlockPool();
+        try {
+            let item = this.blockpool.getBlock(hash);
 
-        for (let i in list) {
-            if (list[i].hash === hash)
+            if (item && item.hash)
                 return true;
+        } catch (e) {
+
         }
 
         return false;
     }
-    addBlock(obj, trigger, context) {
+    addBlock(obj, trigger, context, cb) {
         if (!context)
             context = {};
-        let list = this.getBlockPool();
 
         context.trigger = trigger;
         if (this.existBlock(obj.hash))
             this.app.throwError('This block already exist', 'alreadyexist');
 
-        this.app.debug('info', 'chain', 'validate block ' + obj.hash)
-        let block = this.BLOCK.fromJSON(this.app, obj);
-        let res = this.BLOCK.validate(this.app, block, context);
-        if (res.error)
-            this.app.throwError('Block is not valid: ' + res.message, res.code);
+        this.app.debug('info', 'btcchain', 'validate block ' + obj.hash)
+        let block;
 
-        this.app.debug('info', 'chain', 'valid block ' + obj.hash)
-        list.unshift(obj);
-        this.app.db.set('blocks', list);
-        this.app.db.save('blocks', 'chain.json');
-        this.index.update(block);
-        this.app.state.createRaw(this.index.getLatest());
+        if (obj instanceof this.BLOCK)
+            block = obj;
+        else
+            block = this.BLOCK.fromJSON(this.app, obj);
+
+        let res = this.BLOCK.validate(block, context);
+        if (!res[0])
+            this.app.throwError('Block is not valid: ' + res[1].join(", "), res[1].join(", "));
+
+        this.app.debug('info', 'btcchain', 'valid block ' + obj.hash)
+        if (!(cb instanceof Function))
+            cb = function () { };
+        this.appendBlock(block, 0, cb);
         this.updateLatestBlock();
 
         for (let i in block.tx) {
