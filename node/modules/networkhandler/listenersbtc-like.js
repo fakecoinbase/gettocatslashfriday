@@ -227,20 +227,20 @@ module.exports = function (app) {
             if (app.network.nodes.getState(connectionInfo) == 'syncing')
                 return;
 
+            let top = app.btcchain.index.getTop();
+
             let startIndex = 0;
-            let stopIndex = 0;
+            let stopIndex = top.height;
             let offsetIndex = 0;
             let sendOffset = false;
 
             startIndex = app.btcchain.index.get("block/" + message.hashStart).height;
             if (message.hashStop)
                 stopIndex = app.btcchain.index.get("block/" + message.hashStop).height;
-            else
-                stopIndex = 0;
 
-            if (startIndex - stopIndex > app.cnf("consensus").syncmax) {
+            if (stopIndex - startIndex > app.cnf("consensus").syncmax) {
                 sendOffset = true;
-                offsetIndex = startIndex - app.cnf("consensus").syncmax;
+                offsetIndex = startIndex + app.cnf("consensus").syncmax;
             } else
                 offsetIndex = stopIndex;
 
