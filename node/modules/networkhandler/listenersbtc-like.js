@@ -232,19 +232,20 @@ module.exports = function (app) {
             let startIndex = 0;
             let stopIndex = top.height;
             let offsetIndex = 0;
-            let sendOffset = false;
+            let sendOffset = 0;
 
             startIndex = app.btcchain.index.get("block/" + message.hashStart).height;
             if (message.hashStop)
                 stopIndex = app.btcchain.index.get("block/" + message.hashStop).height;
 
             if (stopIndex - startIndex > app.cnf("consensus").syncmax) {
-                sendOffset = true;
+                sendOffset = 1;
                 offsetIndex = startIndex + app.cnf("consensus").syncmax;
             } else
                 offsetIndex = stopIndex;
 
             let range = [startIndex, offsetIndex];
+
             let first = range[0];
             let last = range[1];
             if (last < 0)
@@ -270,7 +271,7 @@ module.exports = function (app) {
             app.network.protocol.sendOne(connectionInfo, 'blocksync', {
                 'type': 'finish',
                 'hash': list[0].hash + list[list.length - 1].hash,
-                'hasNext': parseInt(sendOffset),
+                'hasNext': sendOffset,
             });
 
             app.network.nodes.setState(connectionInfo, 'synced');
