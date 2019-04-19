@@ -254,7 +254,7 @@ module.exports = function (app) {
                 return;//nothing todo here
 
             app.network.nodes.setState(connectionInfo, 'syncing');
-            let list = app.btcchain.getBlockList(first, last);
+            let list = app.btcchain.getBlockList(last, first);
 
             //start send range
             app.network.protocol.sendOne(connectionInfo, 'blocksync', {

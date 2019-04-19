@@ -16,6 +16,7 @@ module.exports = function (app) {
                 }
             }
 
+            console.log('validator', res, Object.keys(validator.rules).length, err);
             return [res == Object.keys(validator.rules).length, err];
         }
         static addRule(name, fnc) {
