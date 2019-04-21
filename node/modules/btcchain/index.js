@@ -558,12 +558,6 @@ class chain {
 
         return list;
     }
-    getBlock(hash) {
-        let block = this.blockpool.getBlock(hash);
-        if (!block)
-            throw new Error('block ' + hash + ' is not exist');
-        return block;
-    }
     getBlockNumber(hash) {
         let blockNumber = this.index.get('index/' + hash);
         if (!blockNumber && blockNumber != 0)

@@ -230,7 +230,7 @@ class block {
         return res;
     }
     send() {
-        //todo
+        this.app.network.protocol.sendAll('block', this.toJSON());
     }
     static fromJSON(app, data) {
         let txlist = data.tx;

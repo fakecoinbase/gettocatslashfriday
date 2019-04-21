@@ -356,7 +356,6 @@ module.exports = function (app) {
                     app.debug("info", "btcchain", "added new block by rpc ", b.hash, b.validation_errors.length, b.validation_errors);
                     if (b.validation_errors.length == 0) {
                         b.send();
-                        cb(null, []);
                     }
                 });
             } catch (e) {
