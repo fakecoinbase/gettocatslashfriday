@@ -41,7 +41,9 @@
                 "410001-1010000": 10
             },
             "genesisMode": false,
-            "syncmax": 200
+            "syncmax": 200,
+            "maturity": 100,
+            "minfeeperbyte": 1
         },
         "pow": {
             "algo": "sha256d",

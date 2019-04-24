@@ -58,9 +58,9 @@ class TX {
             let k = this.parser.toJSON();
 
             if (!this.inputs)
-                this.inputs = k['inputs'];
+                this.inputs = k['in'];
             if (!this.outputs)
-                this.outputs = k['outputs'];
+                this.outputs = k['out'];
 
             return this;
         } else
@@ -119,8 +119,8 @@ class TX {
 
         return this.id;
     }
-    getHash() {
-        return this.getId();
+    getHash(forse) {
+        return this.getId(forse);
     }
     getFee() {
         if (!(this.parser instanceof txparser))
@@ -150,6 +150,14 @@ class TX {
 
 
 
+    }
+    isValid(context) {
+        let val = new this.app.btcchain.TX.VALIDATOR(this, context);
+        let res = val.isValid();
+        if (!res[0])
+            this.validation_errors = res[1];
+
+        return res;
     }
 }
 
@@ -223,80 +231,11 @@ TX.fromHEX = function (app, hex) {
     return tx;
 }
 
-
-TX.validate = function (app, tx, type, context) {
-    //context.trigger is mempool|sync|blockvalidate - mempool is new tx, sync is tx from syncing node, blockvalidate - validate in block-validating, context in this case have context.parent (block context.trigger) 
-    if (!type)
-        type = 'common';//coinbase|common
-
-    //valid key same:
-    //valid signature
-    //todo:
-    let txver = new Verifier(app, tx);
-    if (!txver.isVerified())
-        return { error: true, message: 'Tx sign is not valid for ' + tx.hash, code: 'invalid-sign' };
-
-    //valid hash
-    if (tx.getId(true) != tx.hash)
-        return { error: true, message: 'Tx hash is not valid for ' + tx.hash, code: 'invalid-hash' };
-
-    //todo: context
-    let errors = Rules.check(tx, context);
-
-    if (!errors.length) {
-        return { error: false };
-    } else
-        return errors;
+TX.validate = function (tx, context) {
+    return tx.isValid(context);
 }
 
-class Verifier {
-
-    constructor(app, tx) {
-        this.app = app;
-        this.data = tx;
-
-        if (!this.data)
-            throw new Error('Txdata is required for tx');
-
-        this.verified = true;
-        this.verify();
-    }
-    verify() {
-
-    }
-    isVerified() {
-        return this.verified;
-    }
-}
-
-let Rules = {
-
-    list: {},
-    add: function (code, callback) {
-        if (Rules.list[code])
-            throw new Error('Rule ' + code + ' already exist');
-        Rules.list[code] = callback;
-    },
-    remove: function (code) {
-        delete Rules.list[code]
-    },
-    check: function (tx, context) {
-        let errors = [];
-        for (let i in Rules.list) {
-            let res = Rules.list[i](tx, context);
-            if (res.error) {
-                errors.push(res);
-            }
-        }
-
-        return errors;
-    }
-
-}
-
-TX.rules = Rules;
 TX.parser = txparser;
 TX.builder = txbuilder;
-TX.verifier = Verifier;
 
 module.exports = TX;

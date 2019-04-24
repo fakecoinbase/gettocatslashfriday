@@ -140,6 +140,19 @@ module.exports = (app) => {
 
             return false;
         }
+        getUTXOInfo(addr, hash, index) {
+            let addrind = this.get("address/" + addr);
+            if (!addrind || !(addrind instanceof Array))
+                addrind = [];
+
+            for (let i in addrind) {
+                if (addrind[i].tx == hash && addrind[i].index == index) {
+                    return addrind[i]
+                }
+            }
+
+            return false;
+        }
         getUTXOList(addr, limit, offset) {
             let addrind = this.get("address/" + addr);
             if (!addrind || !(addrind instanceof Array))

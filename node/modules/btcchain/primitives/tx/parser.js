@@ -45,20 +45,20 @@ class txParser {
         let inval = 0, outval = 0;
 
         //todo: get prev addrout for each input from blockchain storage
-        /*for (let i in this.bytesBody['inputs']) {
+        for (let i in this.body['in']) {
             let out;
-            if (json['in'][i].hash != "0000000000000000000000000000000000000000000000000000000000000000" && global.blockchainInited) {//not a coinbase
-                out = blockchain.getOut(json['inputs'][i].tx, json['inputs'][i].index);
+            if (json['in'][i].hash != "0000000000000000000000000000000000000000000000000000000000000000") {//not a coinbase
+                out = this.app.btcchain.getOut(json['in'][i].hash, json['in'][i].index);
                 inval += out.value;
             }
-        }*/
+        }
 
         for (var i in this.body['out']) {
             this.body['out'][i].address = this.app.btcchain.SCRIPT.scriptToAddr(this.app, this.body.coinbase ? this.body['out'][i].scriptPubKey : this.body['out'][i].script);
             outval += this.body['out'][i].amount;
         }
 
-        json.fee = this.fee = inval / outval;
+        json.fee = this.fee = inval - outval;
         json.size = this.size = new Buffer(this.raw).length;
         if (!this.body.hash)
             this.body.hash = json.hash = this.getHash();

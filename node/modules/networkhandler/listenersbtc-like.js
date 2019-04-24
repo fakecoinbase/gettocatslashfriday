@@ -287,6 +287,11 @@ module.exports = function (app) {
             }
         }
 
+        if (message.type == 'blockdata'){
+            let block = app.btcchain.getBlock(message.hash);
+            app.network.protocol.sendOne(connectionInfo, 'block', block);
+        }
+
     });
 
     app.on("handler.blocksync", function (message, connectionInfo, selfMessage) {
@@ -531,6 +536,13 @@ module.exports = function (app) {
         app.debug('info', 'app', 'unidle app');
         app.setAppState(app.getPrevAppState());
         //if (app.getAppState() == 'ready' && app.isReadySended())
+    });
+
+    app.on("chain.block.seek", (data) => {
+        app.network.protocol.sendOne(connectionInfo, 'getdata', {
+            type: 'blockdata',
+            hash: data.hash
+        });
     });
 
 }

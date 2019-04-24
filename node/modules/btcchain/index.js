@@ -26,6 +26,7 @@ class chain {
         this.TX = require('./primitives/tx');
         this.BLOCK = require('./primitives/block');
         this.BLOCK.VALIDATOR = require('./primitives/block/validator')(app);
+        this.TX.VALIDATOR = require('./primitives/tx/validator')(app);
         let bp = require('./primitives/blockpool');
 
         this.prepare();
@@ -49,13 +50,7 @@ class chain {
     }
     prepare() {
 
-        this.BLOCK.VALIDATOR.addRule('', function (validator, context, app) {
-            let block = this;
-
-            //app.throwError("msg", 'code');
-            return true;
-        });
-
+        require('./validations')(app, this);
 
         this.app.tools.bitPony.extend('orwell_block', () => {//datascript...
 
@@ -328,6 +323,27 @@ class chain {
             prev: b.hashPrevBlock,
             height: context.height
         });
+    }
+    replaceBlock(height, hash, replaceblock) {
+
+        try {
+            let block = this.getBlock(hash);
+            this.blockpool.removeBlock(block);
+            //remove index for this height
+            replaceblock.height = height;
+            this.blockpool.save(replaceblock);
+            this.blockpool.saveDb();
+
+            this.index.setContext(height);
+            //index this block (for sync new chain only, next - reindex all blockchain)
+            var b = new Block();
+            b.fromJSON(replaceblock);
+            this.indexBlock(b, { height: height, events: false });
+            this.index.setContext(null);
+
+        } catch (e) {
+            this.debug("btcchain", "err", e)
+        }
     }
     indexBlocks(blocks) {
         let last = 0, dbheight = 0, m = 0, commonCnt = blocks.length, synced = false;

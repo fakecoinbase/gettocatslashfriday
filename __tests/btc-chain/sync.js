@@ -19,6 +19,7 @@ app.on("ready", () => {
 
     let prevhash = app.btcchain.index.get('top').hash;
     console.log('inited, ' + prevhash);
+
     /*
     for (let m = 0; m < 1000; m++) {
         

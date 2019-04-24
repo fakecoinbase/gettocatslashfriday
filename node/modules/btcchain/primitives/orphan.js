@@ -108,7 +108,7 @@ module.exports = (app) => {
             //TODO handle this event
             app.emit("chain.block.seek", { hash: hash })
         }
-        replaceBlock(index, from, to) {
+        replaceBlock(index, from, to) { 
             this.removeBlock(from.hash);
             this.addBlock(to);
         }
