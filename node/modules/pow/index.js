@@ -126,10 +126,10 @@ class pow {
             let last = app.btcchain.index.get('top');
 
             if (last.height < app.cnf('consensus').premine)
-                return app.cnf('btcpow').target;
+                return app.cnf('btcpow').maxtarget;
 
-            if (!list.length || list.height == 0)//genesis check
-                return app.cnf('btcpow').target
+            if (!list.length || last.height == 0)//genesis check
+                return app.cnf('btcpow').maxtarget
 
             let L = app.cnf("btcpow").blockcount;
             let N = difficulties.length;
@@ -173,8 +173,9 @@ class pow {
 
         }
 
-
-        //return pow.next_difficulty(this.app, timestamps, difficulties, target_seconds)
+        if (app.cnf("consensus").powVersion == 'orwell') {
+            return app.orwell.consensus.consensus.next_network_target(app.orwell.index.getTop().height + 1);
+        }
     }
     lt(hash, diff) {
         return pow.checkHash(this.app, hash, diff)
@@ -311,8 +312,12 @@ class pow {
             //let la = pow.log2(a_);
             //if (config.debug.mining)
             //     console.log("        " + la, log2(b_), res);
-    
+
             return res;
+        }
+
+        if (this.app.cnf("consensus").powVersion == 'orwell') {
+            return this.app.orwell.consensus.consensus.checkHash(hash, diff);
         }
     }
 }

@@ -26,7 +26,8 @@
         "orwelldb": "^0.0.13",
         "recursive-diff": "^0.1.2",
         "split": "^1.0.1",
-        "threads": "^0.11.0"
+        "tiny-worker": "^2.2.0",
+        "consensusjs": "^0.0.13"
     },
     "author": {
         "name": "Nanocat <gettocat@github.com>",

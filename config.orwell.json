@@ -1,31 +1,33 @@
 {
     "tests": [],
-    "network": "btc-like",
-    "btc-like": {
+    "network": "orwl",
+    "orwl": {
         "port": 19841,
-        "magic": "ff3a2b1e",
+        "magic": "aa3a2b2f",
         "nodes": [
             "morty.node.orwellcoin.org//19841",
             "127.0.0.1//19841"
         ],
         "modules": [
+            "orwellminer",
             "storage",
             "pow",
             "wallet",
             "rpc",
-            "btcchain",
+            "orwell",
             "networkhandler",
             "network"
         ],
         "consensus": {
-            "extends": "pos",
+            "extends": "pow",
             "shareStake": 0.3,
-            "premine": 6,
+            "premine": 12,
+            "maxtarget": 1,
             "blocktime": 60,
             "changeBranchDelay": 1,
             "version": 1,
             "algo": "pow",
-            "powVersion": "bitcoin",
+            "powVersion": "orwell",
             "blockEvery": 60,
             "blockSize": 1e7,
             "data.timeout": 300,
@@ -57,13 +59,6 @@
             "diffLag": 2,
             "diffCut": 6
         },
-        "btcpow": {
-            "premine": 199,
-            "blockcount": 12,
-            "maxtarget": "0x1d00ffff",
-            "blockfreq": 300,
-            "excludeFirst": 1
-        },
         "node": {
             "publicKey": "04aa443931cceeadbbf591f60dceb47b7051045c29d3130203532e7112fbe6a6e92af3ee724be384903c7220998386835864aa63e5a14513d4704777119dacdb94",
             "privateKey": "58a38eee853f5a682c263c862a5d8d4a47deb5b853dd1f6cec241d884829ebea"
@@ -79,13 +74,14 @@
             "rpc": true
         },
         "genesis": {
-            "hash": "7780b0d21be3af34e4c218a24d7245bf9d3f80e811ce39c51d5c0f87ac79a585",
+            "hash": "0f82f9182847ae694b61e8de6e21804c03747e6201983d3efd8d35fa9c743801",
             "version": 1,
             "prev": "0000000000000000000000000000000000000000000000000000000000000000",
             "merkle": "a0b2f8c9b6037982d5b8a83db22c30e187fcb446127d0ad54640c4b8d67f48b1",
-            "time": 1564302852,
+            "time": 1564305081,
+            "bits": 1,
             "fee": 0,
-            "nonce": 0,
+            "nonce": 2,
             "size": 274,
             "tx": [
                 {

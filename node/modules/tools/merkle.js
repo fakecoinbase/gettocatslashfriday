@@ -12,8 +12,8 @@ function merkle_() {
 }
 
 merkle_.tree = function (util, arr) {
-    var m = new merkle()
-    for (var i in arr) {
+    let m = new merkle()
+    for (let i in arr) {
         m.addLeaf(util.reverseBuffer(new Buffer(arr[i], 'hex')).toString('hex'))
     }
 

@@ -19,6 +19,7 @@ class app extends EventEmitter {
         this.prevappstate = '';
         this.miningstate = '';
         this.syncstate = '';
+        this.skiplist = [];
 
         this.loadModule('config')
             .then(() => {
@@ -53,6 +54,9 @@ class app extends EventEmitter {
             module: module_name,
             text: arr,
         });
+    }
+    skipModules(skiplist) {
+        this.skiplist = skiplist;
     }
     init(modules) {
 
@@ -93,6 +97,8 @@ class app extends EventEmitter {
 
         let prevState = false;
         for (let i = 0; i < arr.length; i++) {
+            if (this.skiplist.indexOf(arr[i]) >= 0)
+                continue;
             if (arr[i] instanceof Array)
                 prevState = this.loadModule(arr[i][0], arr[i][1], prevState)
             else

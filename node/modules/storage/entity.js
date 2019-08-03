@@ -13,9 +13,11 @@ class entity {
         }
     }
     save(block) {
-        this.coll.insert(block);
-        this.saveDb();
-        return true;
+        return new Promise((resolve)=>{
+            this.coll.insert(block);
+            this.saveDb();
+            resolve(block); 
+        });
 
     }
     get(hash) {

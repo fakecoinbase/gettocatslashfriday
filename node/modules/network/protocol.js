@@ -122,7 +122,7 @@ protocol.prototype = {
             this.nodes.set("data/" + this.getAddressUniq(rinfo), d);
             this.sendOne(rinfo, 'version', {
                 version: this.app.cnf('consensus').version || 0,
-                lastblock: this.app.btcchain.index.getTop(),
+                lastblock: this.app.orwell.index.getTop(),
                 agent: this.getUserAgent(),
                 nodekey: this.getNodeKey(),
                 timezone: 0//offset UTC

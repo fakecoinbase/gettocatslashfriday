@@ -63,8 +63,8 @@ module.exports = function (app, chain) {
             return true;
         });
         //Make sure none of the inputs have hash=0, n=-1 (coinbase transactions)
-        if (context.trigger == 'block' && context.index != 0)
-            chain.TX.VALIDATOR.addRule('invaluecoinbase', function (validator, context, app_) {
+        chain.TX.VALIDATOR.addRule('invaluecoinbase', function (validator, context, app_) {
+            if (!(context.trigger == 'block' && context.index != 0)) {
                 let tx = this;
 
                 let ins = tx.getInputs();
@@ -75,7 +75,9 @@ module.exports = function (app, chain) {
                 }
 
                 return true;
-            });
+            } 
+            return true;
+        });
         //Check that nLockTime <= INT_MAX[1], and sig opcount <= 2[3]
         chain.TX.VALIDATOR.addRule('locktime', function (validator, context, app_) {
             let tx = this;

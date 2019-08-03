@@ -28,6 +28,7 @@ class chain {
         this.BLOCK.VALIDATOR = require('./primitives/block/validator')(app);
         this.TX.VALIDATOR = require('./primitives/tx/validator')(app);
         let bp = require('./primitives/blockpool');
+        let orp = require('./primitives/orphan');
 
         this.prepare();
 
@@ -35,6 +36,7 @@ class chain {
             this.app.debug("info", "btcchain", "storage loaded, can load indexes")
         //this entity can be loaded after db initialization.
         let BLOCKPOOL = bp(app);
+        let ORPHAN = orp(app);
         let inds = require('./indexer');
         let utxo_ = require('./utxo');
         let MiningWork = require('./work')(app);
@@ -42,8 +44,10 @@ class chain {
         let UTXO = utxo_(app);
 
         this.blockpool = new BLOCKPOOL();
+        this.orphan = new ORPHAN();
         this.index = new index();
         this.utxo = new UTXO();
+        this.checkpoint = require("./checkpoints");
 
         this.miningWork = new MiningWork();
 
@@ -605,8 +609,8 @@ class chain {
 
         return diffs;
     }
-    getActualDiff() {
-        let last_inx = this.index.get('top').height;
+    getDiffForHeight(height) {
+        let last_inx = height;
         let first_inx = last_inx - this.app.cnf("btcpow").blockcount;
         if (first_inx < 0)
             first_inx = 0;
@@ -625,6 +629,9 @@ class chain {
         // Limit adjustment step
         let nActualTimespan = last.time - first.time;
         return this.app.pow.getBitsRange(nActualTimespan, last);
+    }
+    getActualDiff() {
+        return this.getDiffForHeight(this.index.get('top').height);
     }
     existHashInMemPool(hash) {
         let list = this.getMemPool();
@@ -710,6 +717,9 @@ class chain {
         }
 
         return false;
+    }
+    getChilds(hash) {
+        return this.blockpool.findBlocks({ hashPrevBlock: hash });
     }
     addBlock(obj, trigger, context, cb) {
         if (!context)

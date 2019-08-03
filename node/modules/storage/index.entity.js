@@ -17,23 +17,27 @@ class index {
         }
     }
     set(key, value) {
-        if (this.inmemory) {
+        return new Promise((resolve) => {
+            if (this.inmemory) {
+                this.setCache(key, value);
+                return Promise.resolve(value);
+            }
+
+            let res;
+            let obj = this.coll.findOne({ 'key': key });
+            if (obj && obj.value) {
+                obj.value = value
+                res = this.coll.update(obj);
+            } else {
+                obj = { key: key, value: value };
+                res = this.coll.insert(obj);
+            }
+
             this.setCache(key, value);
-            return value;
-        }
+            this.save();
+            return resolve(obj);
+        });
 
-        let obj = this.coll.findOne({ 'key': key });
-        if (obj && obj.value) {
-            obj.value = value
-            this.coll.update(obj);
-        } else {
-            obj = { key: key, value: value };
-            this.coll.insert(obj);
-        }
-
-        this.setCache(key, value);
-        this.save();
-        return obj;
     }
     get(key) {
         let val = this.getCache(key);
