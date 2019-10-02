@@ -70,24 +70,32 @@ module.exports = {
         var key = ec.keyFromPublic(public, 'hex')
         return key.verify(messageBinary, sign, 'hex')
     },
-    createECDHsecret(exported_public, keystore){
+    createECDHsecret(exported_public, keystore) {
         let ec = new EC('secp256k1');
         let key = ec.keyFromPrivate(keystore.privateKey, 16);
-        let key2 = ec.keyFromPublic(exported_public, 'hex')
+        let key2 = ec.keyFromPublic(exported_public, 'hex');
         return key.derive(key2.getPublic()).toString(16);
     },
-    encryptECDH(buffer, secret, algorithm){
+    encryptECDH(buffer, secret, algorithm) {
         if (!algorithm)
             algorithm = 'aes-256-ctr';
 
-        let cipher = cr.createCipher(algorithm, secret)
-        return Buffer.concat([cipher.update(new Buffer(buffer,'hex')), cipher.final()]);
+        secret = new Buffer(secret, 'hex');
+        const key = cr.scryptSync(secret, '5c4d018cdceb47b7051045c29d3130203b999f03d3c4200b7fe957ea99', secret.length);
+        const iv = Buffer.alloc(16, 0);
+
+        let cipher = cr.createCipheriv(algorithm, new Buffer(key, 'hex'), iv);
+        return Buffer.concat([cipher.update(new Buffer(buffer, 'hex')), cipher.final()]);
     },
-    decryptECDH(buffer, secret, algorithm){
+    decryptECDH(buffer, secret, algorithm) {
         if (!algorithm)
             algorithm = 'aes-256-ctr';
 
-        let decipher = cr.createDecipher(algorithm, secret)
+        secret = new Buffer(secret, 'hex');
+        const key = cr.scryptSync(secret, '5c4d018cdceb47b7051045c29d3130203b999f03d3c4200b7fe957ea99', secret.length);
+        const iv = Buffer.alloc(16, 0);
+
+        let decipher = cr.createDecipheriv(algorithm, key, iv);
         return Buffer.concat([decipher.update(buffer), decipher.final()]);
     },
     sha256: function (message, output) {

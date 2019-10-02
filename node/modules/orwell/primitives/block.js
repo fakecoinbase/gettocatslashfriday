@@ -215,6 +215,7 @@ module.exports = (app) => {
                 nonce: json.nonce,
                 height: json.height,
                 hash: json.hash,
+                height: json.height
             });
 
             for (let i in json.tx) {
@@ -253,6 +254,7 @@ module.exports = (app) => {
                 "time": data.time,
                 "bits": data.bits,
                 "nonce": data.nonce,
+                "height": data.height,
             };
 
             if (!txlist || !(txlist instanceof Array) || txlist.length < 1)

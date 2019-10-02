@@ -5,7 +5,9 @@
 * Copyright (c) 2017 Nanocat <@orwellcat at twitter>
 */
 
-let bitPony = require('bitpony');
+const bitPony = require('bitpony');
+const bitOwl = require('bitowl');
+
 let protocol = function (app, nodes) {
     this.app = app;
     this.nodes = nodes;
@@ -15,87 +17,42 @@ let protocol = function (app, nodes) {
 }
 
 protocol.prototype = {
-    chunks: [],
     nodename: '',
     createMessage: function (type, data) {
-
-        var msg = JSON.stringify(data);
+        let msg = bitOwl.data.pack(data);
         //magic
-        var buff = new Buffer(this.separator(), 'hex');
-        var writer = new bitPony.writer(buff);
-        writer.uint32(rand(0, 0xffffffff), true)//message round number
-        writer.uint32(0, true);//message order in list (used if messages count > 1). Can split big message to some small
-        writer.uint32(1, true);//messages count
+        let buff = new Buffer('', 'hex');
+        let writer = new bitPony.writer(buff);
         //command,
         writer.string(type, true);
         //checksum,
-        writer.hash(this.app.crypto.sha256(this.app.crypto.sha256(type + msg)).toString('hex'), true);
+        writer.hash(this.app.crypto.sha256(this.app.crypto.sha256(type + msg.toString('hex'))).toString('hex'), true);
         //payload_raw,
         writer.string(msg, true);
         return writer.getBuffer()
     },
     readMessage: function (buff) {
 
-        if (!(buff instanceof Buffer))
-            buff = new Buffer(buff, 'hex');
-
-        if (buff.toString('hex').indexOf(this.separator()) != 0) {
-            this.chunks.push(buff);
-            buff = Buffer.concat(this.chunks);
-            //return false;
-        }
-
-        var package = {}, data = null
-        var reader = new bitPony.reader(buff);
-        var res = reader.uint32(0);
-
-        package.magic = res.result;
-        res = reader.uint32(res.offset);
-        package.rand = res.result;
-        res = reader.uint32(res.offset);
-        package.order = res.result;
-        res = reader.uint32(res.offset);
-        package.messages = res.result;
-        res = reader.string(res.offset);
+        let package = {}, data = null
+        let reader = new bitPony.reader(buff);
+        let res = reader.string(0);
         package.command = res.result.toString('utf8');
         res = reader.hash(res.offset);
         package.checksum = res.result;
         res = reader.string(res.offset);
         package.payload = res.result;
+        data = bitOwl.data.unpack(package.payload);
 
-        if (package.messages > 1) {
-            if (!this.chunks[package.rand])
-                this.chunks[package.rand] = {};
-            this.chunks[package.rand][package.order] = package.payload;
-            data = null;
-            if (Object.keys(this.chunks[package.rand]).length >= package.messages) {
-                var buffer = Buffer.concat(this.chunks[package.rand]);
-                data = buffer.toString('utf8');
-                this.chunks[package.rand] = null;
-                delete this.chunks[package.rand];
-            }
-        }
-
-        if (package.messages == 1)
-            data = package.payload.toString('utf8');
-
-        if (!data)//multiple message
-            return false;
-
-        var myhash = this.app.crypto.sha256(this.app.crypto.sha256(package.command + data)).toString('hex');
+        let myhash = this.app.crypto.sha256(this.app.crypto.sha256(package.command + package.payload.toString('hex'))).toString('hex');
         if (myhash != package.checksum) {
             //not full message, wait another chunks
-            this.chunks = [];
-            this.chunks[0] = buff;
             if (this.app.cnf('debug').protocol)
                 this.app.debug('error', 'network', "!! cant read message, hash is not valid or size of message is not equals, size (" + package.checksum + "," + myhash + ")")
-
-            return false;
         }
 
         return [
             package.command,
-            data ? JSON.parse(data) : {}
+            data || {}
         ]
     },
     init: function () {
@@ -117,16 +74,19 @@ protocol.prototype = {
                     afterInit(rinfo);
             });
 
+
             let d = this.nodes.get("data/" + this.getAddressUniq(rinfo));
-            d.initiator = 1;
-            this.nodes.set("data/" + this.getAddressUniq(rinfo), d);
-            this.sendOne(rinfo, 'version', {
-                version: this.app.cnf('consensus').version || 0,
-                lastblock: this.app.orwell.index.getTop(),
-                agent: this.getUserAgent(),
-                nodekey: this.getNodeKey(),
-                timezone: 0//offset UTC
-            })
+            this.app.once("net.node.connected" + this.getAddressUniq(rinfo), () => {
+                d.initiator = 1;
+                this.nodes.set("data/" + this.getAddressUniq(rinfo), d);
+                this.sendOne(rinfo, 'version', {
+                    version: this.app.cnf('consensus').version || 0,
+                    lastblock: this.app.orwell.index.getTop(),
+                    agent: this.getUserAgent(),
+                    nodekey: this.getNodeKey(),
+                    timezone: 0//offset UTC
+                }, true)
+            });
         });
 
     },
@@ -170,19 +130,20 @@ protocol.prototype = {
                 this.app.debug('error', 'network', "to start node need generate KeyPair")
             throw new Error('error, to start node need generate KeyPair');
         }
-        return this.nodeKey = this.app.crypto.generateAddress(this.app.cnf('node').publicKey)
+        return this.nodeKey = this.app.cnf('node').publicKey
     },
     handleMessage: function (data, rinfo, self) {
 
-        var a = this.readMessage(data);
+        let decrypted = this.app.network.decryptMessage(data.payload, this.getAddressUniq(rinfo), data.encFlag);
+        let a = this.readMessage(decrypted);
         if (a) {
             if (this.app.cnf('debug').network)
                 this.app.debug("info", 'network', "< recv " + a[0] + " < " + JSON.stringify(a[1]))
             //todo get node-info by addr and get nodeKey
             let nodeKey = a[1].nodekey;
-            if (!nodeKey) 
+            if (!nodeKey)
                 nodeKey = this.app.network.nodes.get('address/' + this.app.network.protocol.getAddressUniq(rinfo));
-            
+
 
             this.app.emit("network.newmessage", { type: a[0], data: a[1], self: self || a[1].nodekey == this.nodeKey });
 
@@ -205,10 +166,10 @@ protocol.prototype = {
         this.app.emit("network.emit", { type: type, data: data });
         this.app.emit("net.send", this.createMessage(type, data))
     },
-    sendOne: function (rinfo, type, data) {
-        this.app.debug('info', 'network', "> send [ one ] " + type + " > " + JSON.stringify(data))
+    sendOne: function (rinfo, type, data, isFirstMessage) {
+        this.app.debug('info', 'network', "> send [ " + this.getAddressUniq(rinfo) + " ] " + type + " > " + JSON.stringify(data))
         this.app.emit("network.send", { type: type, data: data, rinfo: rinfo });
-        this.app.emit("net.send", this.createMessage(type, data), rinfo)
+        this.app.emit("net.send", this.createMessage(type, data), rinfo, isFirstMessage)
     },
     addNode: function (nodeAddr, cb) {
 
@@ -287,7 +248,7 @@ protocol.prototype = {
             list = [];
 
         if (!list.length)
-            list = config.nodes;
+            list = this.app.cnf('nodes');
 
         for (var i in list)
             if (list[i] != addr) {

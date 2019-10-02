@@ -89,6 +89,9 @@ module.exports = (app, orwell) => {
             //addPeer(peer) - add new peer to list
             //removePeerById(peerId) - remove  peer by id
             //removePeer(peer) remove peer
+            getPeersList() {
+                let list = app.network.nodes.getMemoryList();
+            }
         }
 
         return PeerManager;
@@ -235,7 +238,7 @@ module.exports = (app, orwell) => {
 
                     let path = '';
                     if (options.chain != 'main')
-                        path = 'main/';
+                        path = options.chain + '/';
 
                     orwell.index.setContext(options.chain + "/" + options.height);
 
@@ -409,8 +412,14 @@ module.exports = (app, orwell) => {
             }
 
             __addToMain(data, blockchain_height) {
-                let hash = orwell.index.get('block/' + data.getId()).hash;
-                if (!hash) {
+                let d = {};
+                try {
+                    d = orwell.blockpool.getBlock(data.getId());
+                } catch (e) {
+
+                }
+
+                if (!d.hash) {
                     return orwell.blockpool.save(data.toJSON())
                         .then(() => {
                             return this.indexData(data, {
@@ -420,7 +429,7 @@ module.exports = (app, orwell) => {
                         })
                 }
 
-                return Promise.resolve(true);
+                return Promise.resolve(data);
             }
 
             __addToSide(data) {
@@ -499,6 +508,10 @@ module.exports = (app, orwell) => {
 
             getGenesis() {
                 return app.orwell.BLOCK.fromJSON(app.cnf('genesis'));
+            }
+
+            seekBlockNetwork(id) {
+                app.emit("chain.block.seek", { hash: id });
             }
 
         }

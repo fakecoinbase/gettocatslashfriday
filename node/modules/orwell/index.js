@@ -156,30 +156,48 @@ class orwell {
         });
     }
 
-    addBlockFromNetwork(peer, data) {
+    addBlockFromNetwork(peer, data, from, cb) {
         let b;
         let res = this.consensus.getConsensus().applyData(peer, data);
         return res.promise
             .then((block) => {
                 b = block;
                 if (res.chain == 'main')
-                    return this.updateLatestBlock();
-                return Promise.resolve(true);
+                    return this.updateLatestBlock(block);
+                return Promise.resolve(block);
             })
             .then(() => {
+                if (cb instanceof Function)
+                    cb(b, res);
+                return Promise.resolve(b);
+            })
+            .catch((e) => {
+                console.log(e);
+                if (cb instanceof Function)
+                    cb(b, res);
                 return Promise.resolve(b);
             })
     }
 
-    updateLatestBlock() {
+    updateLatestBlock(block) {
         return new Promise((resolve) => {
             if (this.blockpool.blockCount() > 0) {
                 let latest = this.blockpool.getLastBlock();
+                let prev = null;
+                let prevh = this.getTopInfo().height;
+                try {
+                    prev = this.getBlock(block.getPrevId());
+                    prevh = this.getBlockHeight(prev.getId());
+                } catch (e) {
 
-                if (this.getTopInfo().id == latest.prev || latest.hash == this.app.cnf('genesis').hash) {
+                }
+
+                //console.log('add block', block.getId(), 'prev', prev.getId(), "prevh", prevh, "h=", this.getTopInfo());
+
+                if (prevh >= this.getTopInfo().height || (prev && prev.getId() == this.index.getTop().id) || block.getId() == this.app.cnf('genesis').hash) {
                     let b = {
-                        id: latest.hash,
-                        height: this.getTopInfo().height + 1 || 0
+                        id: block.getId(),
+                        height: prevh + 1 || 0
                     }
                     this.index.updateTop(b)
                         .then(() => {
@@ -237,6 +255,210 @@ class orwell {
 
     getMemPool() {
         return [];
+    }
+
+    getKnownRange() {
+        return this.consensus.getConsensus().getWindowRange();
+    }
+
+    sendTx (message){
+
+    }
+
+
+    getBlockList(last, first) {
+        return this.consensus.dataManager.getDataSlice(last, first);
+    }
+
+    getHeaderList(last, first) {
+        let arr = [];
+        let list = this.consensus.dataManager.getDataSlice(last, first);
+        for (let i in list) {
+            arr.push(list[i].getHeaderHex());
+        }
+        return arr;
+    }
+
+    getBlockHeight(hash) {
+        return this.consensus.dataManager.getDataHeight(hash);
+    }
+
+    getBlock(hash) {
+        return this.consensus.dataManager.getData(hash);
+    }
+
+    getDatascriptList(dbname, raw, byDataset) {
+
+        let addrind = this.index.get("ds/address/" + dbname);
+        if (!addrind)
+            addrind = [];
+
+        /*if (raw) {
+            var uncomfaddrind = txindexes.get("ds/address/" + dbname);
+            if (!uncomfaddrind)
+                uncomfaddrind = [];
+
+            for (var i in uncomfaddrind) {//add to end of confirmed ds index - uncpmfirmed operations.
+                addrind.push(uncomfaddrind[i]);
+            }
+        }*/
+
+        let dscript = require('orwelldb').datascript;
+        let dslist;
+        if (byDataset)
+            dslist = {};
+        else
+            dslist = [];
+
+        for (let i in addrind) {
+            let tx = null;
+            try {
+                tx = this.consensus.dataManager.getTx(addrind[i]);
+            } catch (e) {
+                //this tx from mempool 
+                //if (raw)
+                //    tx = txindexes.get(addrind[i]);
+            }
+
+            if (!tx)
+                continue;//its fiasco
+
+            if (!tx.datascript)
+                continue;//how,why?
+
+            if (tx.coinbase)
+                continue;//can not be coinbase
+
+            let h = this.SCRIPT.sigToArray(tx.in[0].scriptSig);
+            let publicKey = h.publicKey;
+
+            if (byDataset && !raw) {
+                let list = dscript.readArray(tx.datascript);
+                for (let k in list) {
+                    let data = new dscript(list[k]).toJSON();
+                    data.writer = publicKey;
+                    if (!dslist[data.dataset])
+                        dslist[data.dataset] = [];
+                    dslist[data.dataset].push(data);
+                }
+
+            } else if (!byDataset && !raw) {
+                let list = dscript.readArray(tx.datascript);
+                for (let k in list) {
+                    let data = new dscript(list[k]).toJSON();
+                    data.writer = publicKey;
+                    dslist.push(data);
+                }
+            }
+
+            if (raw)
+                dslist.push({ ds: tx.datascript, writer: publicKey })
+
+        }
+
+        return dslist;
+    }
+    getDatascriptSlice(dbname, dataset, limit, offset) {
+        let addrind = this.index.get("ds/address/" + dbname);
+        if (!addrind)
+            addrind = [];
+
+        let dscript = require('orwelldb').datascript;
+        let dslist = [], actual = {}, create = {};
+
+        for (let i in addrind) {
+
+            let tx = this.consensus.dataManager.getTx(addrind[i]);
+            if (!tx.datascript)
+                continue;//how,why?
+
+            if (tx.coinbase)
+                continue;//can not be coinbase
+
+            let h = this.SCRIPT.sigToArray(tx.in[0].scriptSig);
+            let publicKey = h.publicKey;
+
+            let list = dscript.readArray(tx.datascript);
+            for (let k in list) {
+                let data = new dscript(list[k]).toJSON();
+
+                if (data.dataset != dataset)
+                    continue;
+
+                if (data.operator == 'create')
+                    create = data;
+
+                if (data.operator == 'create' || data.operator == 'settings')
+                    actual = data;
+
+                data.writer = publicKey;
+                dslist.push(data);
+            }
+        }
+
+        if (actual.content && create.content)
+            if (!actual.content.owner_key)
+                actual.content.owner_key = create.content.owner_key;
+
+        let items = dslist.slice(offset, offset + limit);
+        return {
+            actualSettings: actual,
+            limit: limit,
+            offset: offset,
+            count: dslist.length,
+            items: items.length,
+            list: items
+        }
+    }
+    getDataSets(dbname) {
+        let addrind = this.index.get("ds/address/" + dbname);
+        if (!addrind)
+            addrind = [];
+
+        let dscript = require('orwelldb').datascript;
+        let dslist = [];
+
+        for (let i in addrind) {
+
+            let tx = this.consensus.dataManager.getTx(addrind[i]);
+            if (!tx.datascript)
+                continue;//how,why?
+
+            if (tx.coinbase)
+                continue;//can not be coinbase
+
+            let h = this.SCRIPT.sigToArray(tx.in[0].scriptSig);
+            let publicKey = h.publicKey;
+
+            let list = dscript.readArray(tx.datascript);
+            for (let k in list) {
+                let data = new dscript(list[k]).toJSON();
+
+                if (data.operator != 'create')
+                    continue;
+
+                data.writer = publicKey;
+                dslist.push(data);
+            }
+
+
+        }
+
+        return dslist;
+    }
+    getDatabases(limit, offset) {
+        let arr = this.index.getAllDSAddresses();
+        if (!arr || !(arr instanceof Array))
+            arr = []
+
+        let items = arr.slice(offset, offset + limit);
+        return {
+            limit: limit,
+            offset: offset,
+            count: arr.length,
+            items: items.length,
+            list: items
+        }
     }
 
 }

@@ -10,9 +10,9 @@ module.exports = function (app, chain) {
             let tx = this;
 
             let hex = tx.toHEX();
-            let tx = chain.TX.fromHEX(app, hex);
+            let tx1 = chain.TX.fromHEX(app, hex);
 
-            if (tx.getHash(true) == tx.getHash()) {//generated hash from hex == old hash from checking tx - valid
+            if (tx1.getHash(true) == tx.getHash()) {//generated hash from hex == old hash from checking tx - valid
                 return true;
             }
 

@@ -19,13 +19,15 @@
             "network"
         ],
         "consensus": {
+            "version": 1,
+            "protocol_version": 1,
             "extends": "pow",
+            "ignorePrevChilds": true,
             "shareStake": 0.3,
             "premine": 12,
             "maxtarget": 1,
             "blocktime": 60,
             "changeBranchDelay": 1,
-            "version": 1,
             "algo": "pow",
             "powVersion": "orwell",
             "blockEvery": 60,
@@ -124,6 +126,9 @@
                 "strict": false,
                 "ssl": null
             }
+        },
+        "orwelldb":{
+            "path": "%home%/orwelldb/"
         }
     },
     "agent": {

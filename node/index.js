@@ -21,6 +21,10 @@ class app extends EventEmitter {
         this.syncstate = '';
         this.skiplist = [];
 
+        process.on('unhandledRejection', (reason, p) => {
+            console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
+          });
+
         this.loadModule('config')
             .then(() => {
                 this.loadConfig(config);

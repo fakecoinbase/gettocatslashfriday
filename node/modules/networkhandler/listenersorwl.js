@@ -4,6 +4,11 @@ module.exports = function (app) {
 
         let key = "data/" + app.network.protocol.getAddressUniq(connectionInfo);
         let d = app.network.nodes.get(key);
+
+        if (d && d.ackSended){
+            return false;
+        }
+
         d.startPing = Date.now();
         app.network.nodes.set(key, {
             key: message.nodekey,
@@ -25,12 +30,12 @@ module.exports = function (app) {
 
         if (!d.initiator) {
             app.network.protocol.sendOne(connectionInfo, 'version', {
-                version: app.cnf('consensus').version || 0,
-                lastblock: app.orwell.index.get('top'),
+                version: app.cnf('consensus').protocol_version || 0,
+                lastblock: app.orwell.index.getTop(),
                 nodekey: app.network.protocol.getNodeKey(),
                 agent: app.network.protocol.getUserAgent(),
                 timezone: 0
-            });
+            }, true);
 
             app.network.protocol.sendOne(connectionInfo, 'verack', {});
             return;
@@ -62,17 +67,17 @@ module.exports = function (app) {
         app.emit("protocol.node.added", key, app.network.protocol.getUniqAddress(key), selfMessage)
 
         var arr = [], isActiveNode = true;
-        if (app.orwell.index.get('top').height > d.top.height) {
+        if (app.orwell.index.getTop().height > d.top.height) {
 
             arr.push({
                 sendBack: true,
                 type: 'needupdate',
                 response: {
-                    lastblock: app.orwell.index.get('top'),
+                    lastblock: app.orwell.index.getTop(),
                     known: app.orwell.getKnownRange(),
                 }
             })
-        } else if (d.top.height > app.orwell.index.get('top').height) {
+        } else if (d.top.height > app.orwell.index.getTop().height) {
             isActiveNode = false;
 
             arr.push({
@@ -80,7 +85,7 @@ module.exports = function (app) {
                 type: 'getdata',
                 response: {
                     type: 'blocks',
-                    hashStart: app.orwell.index.getTop().hash,
+                    hashStart: app.orwell.index.getTop().id,
                     hashStop: 0,
                     offset: 0,
                 }
@@ -93,7 +98,7 @@ module.exports = function (app) {
         if (app.getSyncState() == 'active' && !isActiveNode && !selfMessage)
             app.emit("app.chain.sync", { status: 'resync' });
 
-        if (d.top.height == app.orwell.index.get('top').height) {
+        if (d.top.height == app.orwell.index.getTop().height) {
             app.network.nodes.setState(connectionInfo, 'synced');
         }
 
@@ -124,7 +129,7 @@ module.exports = function (app) {
         }
 
         app.network.protocol.sendOne(connectionInfo, 'ping', {
-            latest: app.orwell.index.get('top'),
+            latest: app.orwell.index.getTop(),
         });
     });
 
@@ -133,26 +138,30 @@ module.exports = function (app) {
         if (selfMessage)
             return false;
 
+
+        if (app.db.get("activesync"))
+            return false;//in sync process now
+
         let key = app.network.protocol.getAddressUniq(connectionInfo);
         let d = app.network.nodes.get("data/" + key);
         d.top = message.latest;
         app.network.nodes.set("data/" + key, d);
 
         let isActiveNode = true;
-        if (app.orwell.index.get('top').height > message.latest.height) {
+        if (app.orwell.index.getTop().height > message.latest.height) {
 
             if (app.getSyncState() == 'readyToSync')
                 app.emit("app.chain.sync", { status: 'success' });
 
             app.network.protocol.sendOne(connectionInfo, 'needupdate', {
-                lastblock: app.orwell.index.get('top'),
+                lastblock: app.orwell.index.getTop(),
                 known: app.orwell.getKnownRange(),
             });
-        } else if (message.latest.height > app.orwell.index.get('top').height) {
+        } else if (message.latest.height > app.orwell.index.getTop().height) {
             isActiveNode = false;
             app.network.protocol.sendOne(connectionInfo, 'getdata', {
                 type: 'blocks',
-                hashStart: app.orwell.index.getTop().hash,
+                hashStart: app.orwell.index.getTop().id,
                 hashStop: 0,
                 offset: 0,
             });
@@ -197,7 +206,7 @@ module.exports = function (app) {
             //send now state to all connected nodes
             app.network.protocol.sendAll('getdata', {
                 type: 'blocks',
-                hashStart: app.orwell.index.getTop().hash,
+                hashStart: app.orwell.index.getTop().id,
                 hashStop: 0,
                 offset: 0,
             });
@@ -278,6 +287,51 @@ module.exports = function (app) {
 
         }
 
+        //todo: protocol exchange for lite clients. (headers (+creator pubkeys), signs, block data)
+        /*if (message.type == 'headers') {
+
+            if (app.network.nodes.getState(connectionInfo) == 'syncing')
+                return;
+
+            let top = app.orwell.index.getTop();
+
+            let startIndex = 0;
+            let stopIndex = top.height;
+            let offsetIndex = 0;
+            let sendOffset = 0;
+
+            startIndex = app.orwell.index.get("block/" + message.hashStart).height;
+            if (message.hashStop)
+                stopIndex = app.orwell.index.get("block/" + message.hashStop).height;
+
+            if (stopIndex - startIndex > app.cnf("consensus").syncmax) {
+                sendOffset = 1;
+                offsetIndex = startIndex + app.cnf("consensus").syncmax;
+            } else
+                offsetIndex = stopIndex;
+
+            let range = [startIndex, offsetIndex];
+
+            let first = range[0];
+            let last = range[1];
+            if (last < 0)
+                last = 0;
+
+            if (app.orwell.index.getTop().hash == message.hashStart)
+                return;//nothing todo here
+
+            app.network.nodes.setState(connectionInfo, 'syncing');
+            let list = app.orwell.getHeaderList(last, first);
+
+            app.network.protocol.sendOne(connectionInfo, 'headers', {
+                list: list,
+                'hasNext': sendOffset,
+            });
+
+            app.network.nodes.setState(connectionInfo, 'synced');
+
+        }*/
+
         if (message.type == 'mempool') {
 
             let list = app.orwell.getMemPool();
@@ -287,9 +341,9 @@ module.exports = function (app) {
             }
         }
 
-        if (message.type == 'blockdata'){
+        if (message.type == 'blockdata') {
             let block = app.orwell.getBlock(message.hash);
-            app.network.protocol.sendOne(connectionInfo, 'block', block);
+            app.network.protocol.sendOne(connectionInfo, 'block', block.toJSON());
         }
 
     });
@@ -306,39 +360,52 @@ module.exports = function (app) {
         }
 
         if (message.type == 'finish') {
+
             app.network.nodes.setState(connectionInfo, 'synced');
             let blocklist = app.db.get("sync/" + message.hash);
             let activesync = app.db.get("activesync");
             //add blocks to blockchain
 
+            let promise = Promise.resolve(-1);
             for (let i in blocklist) {
-                try {
-                    app.orwell.addBlock(blocklist[i], 'sync', { isWindowFirst: i == 0, syncNum: i });
-                } catch (e) {
-                    app.debug("error", "info", e.message);
-                }
+                promise = promise
+                    .then((b) => {
+                        return new Promise((resolve, reject) => {
+                            try {
+                                app.orwell.addBlockFromNetwork(null, app.orwell.BLOCK.fromJSON(blocklist[i]), 'sync', (block, res) => {
+                                    resolve(block);
+                                });
+                            } catch (e) {
+                                app.debug("error", "info", e.message);
+                                reject(e.message);
+                            }
+                        })
+                    });
             }
 
-            //sort blockpool by number
-            app.db.remove("sync/" + message.hash);
-            app.db.remove("activesync");
+            promise
+                .then(() => {
+                    //sort blockpool by number
+                    app.db.remove("sync/" + message.hash);
+                    app.db.remove("activesync");
 
-            //call next offset, if have offset param
-            if (message.hasNext) {
-                app.network.protocol.sendOne(connectionInfo, 'getdata', {
-                    type: 'blocks',
-                    hashStart: app.orwell.index.getTop().hash,
-                    hashStop: 0,
-                    offset: 0,
-                });
-            } else {
-                //or call mempool set
-                app.network.protocol.sendOne(connectionInfo, 'getdata', {
-                    type: 'mempool'
-                });
+                    //call next offset, if have offset param
+                    if (message.hasNext) {
+                        app.network.protocol.sendOne(connectionInfo, 'getdata', {
+                            type: 'blocks',
+                            hashStart: app.orwell.index.getTop().id,
+                            hashStop: 0,
+                            offset: 0,
+                        });
+                    } else {
+                        //or call mempool set
+                        app.network.protocol.sendOne(connectionInfo, 'getdata', {
+                            type: 'mempool'
+                        });
 
-                app.setSyncState("active");
-            }
+                        app.setSyncState("active");
+                    }
+                })
 
         }
 
@@ -355,19 +422,34 @@ module.exports = function (app) {
             blocklist.push(message);
             app.db.set("sync/" + activesync, blocklist);
         } else {
+            if (selfMessage)
+                return false;
+
+
             try {
-                app.debug('info', 'orwell', message.height + "/" + message.hash);
-                app.orwell.addBlock(message, 'relay', {}, function (b, _, inMainNet) {
-                    app.debug("info", "orwell", "added new block by rpc ", b.hash, b.validation_errors.length, b.validation_errors);
-                    if (b.validation_errors.length == 0) {
-                        b.send();
-                    }
+                let height = app.orwell.getBlockHeight(message.prev) + 1;
+                message.height = height;
+                app.debug('info', 'orwell', height + "/" + message.hash);
+                app.orwell.addBlockFromNetwork(null, app.orwell.BLOCK.fromJSON(message), 'relay', function (block, res) {
+                    app.debug("info", "orwell", "added new block by rpc chain ", res.chain, block.getId());
+                    //if (b.validation_errors.length == 0) {
+                    //    b.send();
+                    //}
                 });
             } catch (e) {
+
+                if (e.message.indexOf("is not exist") > 0)
+                    e.code = 'block_prev_missing';
+
                 if (e.code == 'alreadyexist')
                     app.debug('warning', 'chain', 'double adding block', e.message);
                 else
                     app.debug('error', 'chain', 'block rejected: ', e.code, e.message);
+
+                if (e.code == 'block_prev_missing') {
+                    app.emit("chain.block.seek", { hash: message.prev });
+                }
+
             }
         }
 
@@ -407,45 +489,20 @@ module.exports = function (app) {
         }
     });
 
-    app.on("handler.state", function (message, connectionInfo, selfMessage) {
-        if (selfMessage)
-            return false;
-        let errcode = '', errmsg = '';
-        let invalid = false;
-        try {
-            if (app.state.updateState(message)) {
-                //TODO: emit for all if new
-                //if (app.getSyncState() == 'active')
-                //app.chain.sendTx(message);
-            } else
-                invalid = true;
-        } catch (e) {
-            errcode = e.code;
-            invalid = true;
-            errmsg = e.message;
-        }
-
-        if (invalid && app.getSyncState() == 'active') {
-            //todo: reject state if new and invalid
-            app.debug('error', 'chain', 'state is rejected: ' + errcode, errmsg)
-            /*app.network.protocol.sendOne(connectionInfo, 'reject', {
-                type: 'tx',
-                hash: message.hash,
-                code: errcode,
-            });*/
-        }
-    });
 
     app.on("handler.needupdate", function (message, connectionInfo, selfMessage) {
         if (selfMessage)
             return false;
+
+        if (app.db.get("activesync"))
+            return false;//in sync process now
 
         app.setSyncState('readyToSync');
 
         //this node have less number block then in 
         app.network.protocol.sendAll('getdata', {
             type: 'blocks',
-            hashStart: app.orwell.index.getTop().hash,
+            hashStart: app.orwell.index.getTop().id,
             hashStop: 0,
             offset: 0,
         });
@@ -539,7 +596,7 @@ module.exports = function (app) {
     });
 
     app.on("chain.block.seek", (data) => {
-        app.network.protocol.sendOne(connectionInfo, 'getdata', {
+        app.network.protocol.sendAll('getdata', {
             type: 'blockdata',
             hash: data.hash
         });

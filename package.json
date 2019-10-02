@@ -23,11 +23,10 @@
         "minimist": "^1.2.0",
         "n64": "^0.1.2",
         "node-json-rpc": "^0.0.1",
-        "orwelldb": "^0.0.13",
-        "recursive-diff": "^0.1.2",
-        "split": "^1.0.1",
+        "orwelldb": "^0.0.14",
         "tiny-worker": "^2.2.0",
-        "consensusjs": "^0.0.13"
+        "consensusjs": "^0.0.14",
+        "bitowl": "^0.0.2"
     },
     "author": {
         "name": "Nanocat <gettocat@github.com>",

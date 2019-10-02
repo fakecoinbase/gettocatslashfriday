@@ -18,6 +18,7 @@ app.on("app.mining.stop", (event) => {
     app.orwell.addBlockFromNetwork(null, block)
         .then((data) => {
             console.log('block added ', data.hash, app.orwell.index.getTop());
+            data.send();
             setTimeout(() => {
                 app.orwellminer.start();
             }, 2000);

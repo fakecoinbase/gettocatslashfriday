@@ -11,11 +11,10 @@ class network {
 
         return new Promise((resolve, reject) => {
 
-            this.inited = true;
             this.separator = () => { return this.app.cnf(this.app.cnf('network')).magic };
             this.port = () => { return this.app.cnf(this.app.cnf('network')).port };
-            const NODES = require('./nodes');
-            this.nodes = new NODES(this.app);
+            const NODES = require('./nodes')(this.app);
+            this.nodes = new NODES();
             let cls = require('./p2p');
             this.p2p = new cls(this.app);
             let cls2 = require('./protocol');
@@ -24,38 +23,38 @@ class network {
             this.app.debug('info', 'network', 'setting up network eventlisteners')
             this.setUp();
             this.app.debug('info', 'network', 'initialize server')
-            this.initServer();
-            this.app.debug('info', 'network', 'initialize client')
-            this.initClient();
-
-            resolve();
-
+            this.initServer()
+                .then(() => {
+                    this.app.debug('info', 'network', 'initialize client')
+                    this.initClient();
+                    this.inited = true;
+                    resolve();
+                });
         });
 
     }
     setUp() {
-        if (!this.inited)
+        if (this.inited)
             return;
         this.app.on("net.connection.add", (socket, from) => {
-
             var o = {}
-            if (from != 'server')
+            /*if (from != 'server')
                 o = {
                     remoteAddress: socket.remoteAddress.replace("::ffff:", ""),
                     remotePort: socket.localPort,
                     localAddress: socket.localAddress.replace("::ffff:", ""),
                     port: socket.remotePort
                 };
-            else
-                o = {
-                    remoteAddress: socket.remoteAddress.replace("::ffff:", ""),
-                    remotePort: socket.remotePort,
-                    localAddress: socket.localAddress.replace("::ffff:", ""),
-                    port: socket.localPort
-                }
+            else*/
+            o = {
+                remoteAddress: socket.remoteAddress.replace("::ffff:", ""),
+                remotePort: socket.remotePort,
+                localAddress: socket.localAddress.replace("::ffff:", ""),
+                port: socket.localPort
+            }
 
             var addr = this.protocol.getAddressUniq(o)
-            this.app.debug('info', 'network', "add seed " + addr, from);
+            this.app.debug('info', 'network', "add peer " + addr, from);
 
             var list = this.nodes.get("connections");
             if (!list || !(list instanceof Array))
@@ -75,13 +74,14 @@ class network {
             }
             //connection new event
             socket.STATUS = 1;
-            this.app.emit("net.connection.new", addr, socket);
             this.nodes.set("connection/" + addr, socket);
+            this.app.emit("net.connection.new", addr, socket);
+            this.app.emit("net.node.connected" + addr, socket);
         });
 
         this.app.on("net.connection.remove", (addr, from) => {
 
-            this.app.debug('info', 'network', "remove seed " + addr, from);
+            this.app.debug('info', 'network', "remove peer " + addr, from);
 
             var list = this.nodes.get("connections");
             if (!list || !(list instanceof Array))
@@ -102,11 +102,14 @@ class network {
             this.nodes.remove("connection/" + addr);
             this.nodes.remove('address/' + addr);
             this.nodes.remove('data/' + addr);
+            try {
+                this.app.removeAllListeners("net.node.init" + addr)
+            } catch (e) {
 
+            };
         })
 
         this.app.on("net.node.add", (addr, cb) => {
-
             this.__addNode(addr, function (client) {
 
                 cb({
@@ -120,6 +123,7 @@ class network {
         });
 
         this.app.on("net.message", (socket, data, from) => {
+
 
             if (!data)
                 return false;
@@ -148,14 +152,26 @@ class network {
 
             if (!socket.remoteAddress)
                 return;
-            if (from == 'server')
-                var rinfo = { remoteAddress: socket.remoteAddress, remotePort: socket.remotePort, port: socket.localPort };
-            else
-                var rinfo = { remoteAddress: socket.remoteAddress, remotePort: socket.localPort, port: socket.remotePort };
+            //if (from == 'server')
+            var rinfo = { remoteAddress: socket.remoteAddress, remotePort: socket.remotePort, port: socket.localPort };
+            //else
+            //   var rinfo = { remoteAddress: socket.remoteAddress, remotePort: socket.localPort, port: socket.remotePort };
+
+            this.nodes.updateRecvBytes(rinfo, new Buffer(data).length);
+
+            //DECRYPT MESSAGE
+            let d = {};
+            try {
+                d = this.parseTransportLayer(data);
+            } catch (e) {
+                this.app.debug('error', 'network', "can not parse message from " + rinfo.remoteAddress, e.message);
+                return false;
+            }
+            //parse layer 1
+            //decrypt (if need)
 
 
-            this.nodes.updateRecvBytes(rinfo, new Buffer(data).length)
-            var nodeKey = this.protocol.handleMessage(data, rinfo, isSelf(socket.remoteAddress));
+            var nodeKey = this.protocol.handleMessage(d, rinfo, isSelf(socket.remoteAddress));
         });
 
         this.app.on("net.error", function (e) {
@@ -178,38 +194,27 @@ class network {
                 console.log(e)
         })
 
-        this.app.on("net.send", (message, rinfo) => {
+        this.app.on("net.send", (message, rinfo, isFirstMessage) => {
 
             this.protocol.checkNodes();
             let nlist = this.protocol.getNodeList();
+            let msg = message;
 
-            if (!(message instanceof Array))
-                message = [message];
-            for (let i in message) {
-                setTimeout((i) => {
-                    let msg = Buffer.concat([
-                        message[i],
-                        new Buffer(this.separator(), 'hex')
-                    ]);
-
-                    try {
-                        if (!rinfo)
-                            for (let k in nlist) {
-                                let rinf = this.protocol.getUniqAddress(nlist[k]);
-                                this.nodes.updateSendTime(rinf)
-                                this.nodes.updateSentBytes(rinf, msg.length)
-                                this.__send(nlist[k], msg.toString('hex'))
-                            }
-                        else {
-                            this.nodes.updateSendTime(rinfo)
-                            this.nodes.updateSentBytes(rinfo, msg.length)
-                            this.__send(this.protocol.getAddressUniq(rinfo), msg.toString('hex'));
-                        }
-                    } catch (e) {
-                        this.app.emit("net.error", e);
+            try {
+                if (!rinfo)
+                    for (let k in nlist) {
+                        let rinf = this.protocol.getUniqAddress(nlist[k]);
+                        this.nodes.updateSendTime(rinf)
+                        this.nodes.updateSentBytes(rinf, msg.length)
+                        this.__send(nlist[k], msg, isFirstMessage)
                     }
-                }, 100 * i, i)
-
+                else {
+                    this.nodes.updateSendTime(rinfo)
+                    this.nodes.updateSentBytes(rinfo, msg.length)
+                    this.__send(this.protocol.getAddressUniq(rinfo), msg, isFirstMessage);
+                }
+            } catch (e) {
+                this.app.emit("net.error", e);
             }
 
 
@@ -217,15 +222,26 @@ class network {
 
     }
     initClient() {
-        if (!this.inited)
+        if (this.inited)
             return;
         this.app.debug('info', 'network', 'init nodes')
         this.protocol.init();
     }
     initServer() {
-        if (!this.inited)
+        if (this.inited)
             return;
+
+        let promise = new Promise((resolve) => {
+
+            this.app.on("net.server.init", () => {
+                this.app.debug("info", 'network', 'server inited');
+                resolve();
+            });
+
+        });
+
         this.p2p.serve();
+        return promise;
     }
     __addNode(addr, cb) {
         var a = this.protocol.getUniqAddress(addr);
@@ -234,15 +250,14 @@ class network {
         if (!a.port)
             a.port = this.port();
         var socket = this.nodes.get("connection/" + addr);
-        if (!socket.STATUS || socket.destroyed === true) {
+        if (!socket || !socket.STATUS || socket.destroyed === true) {
 
             //remove old connection
             this.app.emit("net.connection.remove", addr);
-            var client = this.p2p.newClient(a.remoteAddress, a.port);
-
-            client.on("connect", () => {
-                this.app.emit("net.connection", client);
-                this.app.emit("net.connection.add", client);
+            this.p2p.newClient(a.remoteAddress, a.port, (client) => {
+                this.app.emit("net.connection", client)
+                this.app.emit("net.connection.add", client, 'client');
+                this.app.emit("net.node.init" + this.app.network.protocol.getAddressUniq(client));
                 cb(client);
 
 
@@ -271,24 +286,103 @@ class network {
 
             });
 
-
-
-        } else
+        } else {
             cb(socket)
+        }
 
     }
-    __send(addr, msg) {
-        var sendmessage = function (msg, socket) {
+    encryptMessage(msg, addr, isFirstMessage) {
+        let encryptedBuffer = new Buffer("");
+        if (!isFirstMessage) {
+            let nodeinfo = this.nodes.get("data/" + addr);
+            //ENCRYPT MESSAGE
+            let publicKey = nodeinfo.key;
+            //create ecdh X | publicKey, keystore -> X
+            let X = this.app.crypto.createECDHsecret(publicKey, this.app.cnf('node'));
+            //encrypt value with | X, value -> encvalue
+            encryptedBuffer = this.app.crypto.encryptECDH(msg, X);
+        } else {
+            encryptedBuffer = msg;
+        }
+
+        return encryptedBuffer;
+    }
+    decryptMessage(buffer, addr, isEncrypted) {
+        if (!isEncrypted) {
+            return buffer;
+        } else {
+            let nodeinfo = this.nodes.get("data/" + addr);
+            let publicKey = nodeinfo.key;
+            let X = this.app.crypto.createECDHsecret(publicKey, this.app.cnf('node'));
+            return this.app.crypto.decryptECDH(buffer, X);
+        }
+    }
+    buildTransportLayer(payload, isEncrypted) {
+        let w = new this.app.tools.bitPony.writer(new Buffer(""));
+        let sign = this.app.crypto.sha256(this.app.crypto.sha256(payload)).slice(0, 4);
+
+        w.uint32(parseInt(this.separator(), 16), true);
+        w.uint8(isEncrypted ? 1 : 0, true);
+        w.var_int(payload.length, true);
+        w.uint32(parseInt(sign.toString('hex'), 16), true);
+        w.char(payload, true);
+
+        return w.getBuffer();
+    }
+    parseTransportLayer(buffer) {
+        let d = {};
+        let r = new this.app.tools.bitPony.reader(new Buffer(buffer, 'hex'));
+
+        let res = r.uint32(0);
+        d.magic = parseInt(res.result).toString(16);
+        res = r.uint8(res.offset);
+        d.encFlag = res.result;
+
+        res = r.var_int(res.offset);
+        d.payloadlength = res.result;
+
+        res = r.uint32(res.offset);
+        d.checksum = new Buffer(this.app.tools.bitPony.tool.numHex(res.result), 'hex').toString('hex');
+
+        if (d.checksum.length == 6)
+            d.checksum += "00";
+
+        if (d.checksum.length == 4)
+            d.checksum += "0000";
+
+        if (d.checksum.length == 2)
+            d.checksum += "000000";
+
+        res = r.char(d.payloadlength, res.offset);
+        d.payload = res.result;
+
+        let sum = this.app.tools.bitPony.tool.sha256(this.app.tools.bitPony.tool.sha256(d.payload)).slice(0, 4);
+        if (d.payloadlength != d.payload.length)
+            throw new Error('invalid size of payload ' + d.payloadlength + ' - ' + d.payload.length);
+
+        if (sum.toString('hex') != d.checksum) {
+            throw new Error(' invalid checksum ' + sum.toString('hex') + " - " + d.checksum);
+        }
+        if (d.magic != this.separator())
+            throw new Error('invalid separator ' + parseInt(d.magic).toString(16) + " - " + this.separator());
+
+        return d;
+    }
+    __send(addr, msg, isFirstMessage) {
+
+        let encryptedBuffer = this.encryptMessage(msg, addr, isFirstMessage);
+        msg = this.buildTransportLayer(encryptedBuffer, !isFirstMessage);
+        let sendmessage = function (msg, socket) {
             socket.write(msg, function () {
             });
         }
 
-        var socket = this.nodes.get("connection/" + addr);
-        if (!socket.STATUS || socket.destroyed === true)
+        let socket = this.nodes.get("connection/" + addr);
+        if (!socket.STATUS || socket.destroyed === true) {
             this.protocol.addNode(addr, (rinfo) => {
                 sendmessage(msg, this.nodes.get("connection/" + this.protocol.getAddressUniq(rinfo)));
             })
-        else
+        } else
             try {
                 sendmessage(msg, socket);
             } catch (e) {

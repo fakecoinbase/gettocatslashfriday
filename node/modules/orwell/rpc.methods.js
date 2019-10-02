@@ -10,20 +10,20 @@ module.exports = function (app) {
             top = { height: -1, hash: '0000000000000000000000000000000000000000000000000000000000000000' };
             bits = parseInt(app.cnf('btcpow').maxtarget, 16);
         } else {
-            top = app.btcchain.index.get('top');
-            bits = app.btcchain.getActualDiff();
+            top = app.orwell.index.get('top');
+            bits = app.orwell.getActualDiff();
         }
 
         let txs = [];//txindexes.getOrderedList();
-        let workid = app.btcchain.miningWork.createWorkId(top.hash, top.height, bits, txs.length);
-        let work_ = app.btcchain.miningWork.get(workid);
+        let workid = app.orwell.miningWork.createWorkId(top.hash, top.height, bits, txs.length);
+        let work_ = app.orwell.miningWork.get(workid);
         app.debug("info", "rpc", workid + ": " + (work_.workid ? 'hit' : 'miss'))
         if (work_.workid)
             return app.rpc.success(work_);
 
         let list = [], fee = 0, txlist = [];
         for (let i in txs) {
-            let tr = new app.btcchain.TX.fromJSON(app, txs[i]);
+            let tr = new app.orwell.TX.fromJSON(txs[i]);
             txlist.push(tr);
             let data = tr.toHex(), hash = tr.getHash(), f = tr.getFee();
             list.push({
@@ -67,7 +67,7 @@ module.exports = function (app) {
         };
 
         app.debug("info", "rpc", work)
-        app.btcchain.miningWork.set(workid, work);
+        app.orwell.miningWork.set(workid, work);
         return app.rpc.success(work);
 
     });
@@ -77,11 +77,11 @@ module.exports = function (app) {
         let val = false
 
         try {
-            val = app.btcchain.ADDRESS.isValidAddress(address)
+            val = app.orwell.ADDRESS.isValidAddress(address)
         } catch (e) {//not valid base58 is catched
             try {
                 if (address.length == 40) {//hash of pubkey
-                    addr = app.btcchain.ADDRESS.generateAddressFromAddrHash(addr)
+                    addr = app.orwell.ADDRESS.generateAddressFromAddrHash(addr)
                     val = true;
                 } else {
                     addr = hash.generateAddressFromPublicKey(address);//its hash
@@ -104,7 +104,7 @@ module.exports = function (app) {
 
             //console.log(blockhex);
             //if block vaild and work id exist - remove block id
-            b = app.btcchain.BLOCK.fromHEX(app, blockhex);
+            b = app.orwell.BLOCK.fromHEX(blockhex);
 
             try {
                 //TODO: check app state before
@@ -112,12 +112,12 @@ module.exports = function (app) {
                 if (app.cnf("consensus").genesisMode)
                     b.height = 0;
                 else
-                    b.height = app.btcchain.index.get('top').height + 1;
-                app.btcchain.addBlock(b, 'rpc', { workid: workid }, function (block, _, inMainNet) {
+                    b.height = app.orwell.index.get('top').height + 1;
+                app.orwell.addBlock(b, 'rpc', { workid: workid }, function (block, _, inMainNet) {
                     //send to all
-                    app.debug("info", "btcchain", "added new block by rpc ", block.hash, block.validation_errors.length, block.validation_errors);
+                    app.debug("info", "orwell", "added new block by rpc ", block.hash, block.validation_errors.length, block.validation_errors);
                     if (workid)
-                        app.btcchain.miningWork.remove(workid);
+                        app.orwell.miningWork.remove(workid);
 
                     if (block.validation_errors.length == 0) {
 
@@ -149,7 +149,7 @@ module.exports = function (app) {
                 });
             } catch (e) {
                 //already have this tx or not valid data
-                app.debug("info", "btcchain", 'block already exist', e)
+                app.debug("info", "orwell", 'block already exist', e)
                 return app.rpc.error(-1, 'block already exist')
             }
 
@@ -161,11 +161,11 @@ module.exports = function (app) {
 
 
     app.rpc.addMethod("getdifficulty", function (params, cb) {
-        return app.rpc.success(app.pow.difficulty(app.btcchain.getActualDiff()));
+        return app.rpc.success(app.pow.difficulty(app.orwell.getActualDiff()));
     });
 
     app.rpc.addMethod("parseblock", function (params, cb) {
-        return app.rpc.success(app.btcchain.BLOCK.fromHEX(app, params[0]));
+        return app.rpc.success(app.orwell.BLOCK.fromHEX(params[0]));
     });
 
     app.rpc.addMethod("getinfo", function (params, cb) {
@@ -174,11 +174,11 @@ module.exports = function (app) {
             "protocolversion": app.cnf("consensus").version,
             "walletversion": app.cnf("agent").version,
             "balance": 0,//TODO: wallet.getBalance(0),
-            "blocks": app.btcchain.getCount(),
+            "blocks": app.orwell.getCount(),
             "timeoffset": 0,
             "connections": 0,//app.network.protocol.getNodeList().length,//nodes.get("connections").length,
             "proxy": "",
-            "difficulty": app.pow.difficulty(app.btcchain.getActualDiff()),
+            "difficulty": app.pow.difficulty(app.orwell.getActualDiff()),
             "testnet": app.cnf('network') == 'testnet',
             "keypoololdest": [],//txindexes.getOldest(),
             "keypoolsize": 0,//txindexes.getCount(),
@@ -190,10 +190,10 @@ module.exports = function (app) {
 
     app.rpc.addMethod("getmininginfo", function (params, cb) {
         return app.rpc.success({
-            "blocks": app.btcchain.getCount(),
+            "blocks": app.orwell.getCount(),
             "currentblocksize": 0,//txindexes.getSize(),
             "currentblocktx": 0,//txindexes.getCount(),
-            "difficulty": app.pow.difficulty(app.btcchain.getActualDiff()),
+            "difficulty": app.pow.difficulty(app.orwell.getActualDiff()),
             "genproclimit": 1,
             "networkhashps": app.pow.currHashRate(),
             "pooledtx": 0, //txindexes.getCount(),

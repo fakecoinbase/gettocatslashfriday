@@ -71,6 +71,11 @@ class index {
 
         return !!val;
     }
+    getMemoryList() {
+        if (!this.inmemory)
+            throw new Error('inmemory only');
+        return this._cache[this.name];
+    }
     getCollection() {
         return this.coll
     }
