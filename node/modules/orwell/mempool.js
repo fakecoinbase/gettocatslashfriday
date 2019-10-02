@@ -28,7 +28,8 @@ module.exports = (app) => {
             }
             return f
         }
-        addTx(tx, cb, fromNet) {
+        //todo: 
+        /*addTx(tx, cb, fromNet) {
             let list = this.getList();
             if (!list || !(list instanceof Array))
                 list = [];
@@ -207,7 +208,7 @@ module.exports = (app) => {
 
             this.set("ds/address/" + out.addrHash, addrind)
             return addrind
-        }
+        }*/
 
     }
 
