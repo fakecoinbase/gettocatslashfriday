@@ -126,7 +126,6 @@ module.exports = (app) => {
 
             let dig_f = new Buffer(a).toString('hex');
             return dig_f === dig_hex;
-
         }
         static isValidDomain(domain) {
             let r = /^([0-9a-z\.]{3,255})$/gi,

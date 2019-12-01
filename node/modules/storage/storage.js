@@ -7,24 +7,25 @@
 const loki = require('lokijs');
 
 class Storage {
-    constructor(app, dbname) {
+    constructor(app, dbname, encrypted) {
         this.app = app;
         this.dbname = dbname?dbname:'chain.dat';
         this.path = this.app.config.getLocalHomePath();
+        this.encrypted = !!encrypted;
         this.db = null;
     }
     init() {
-        this.app.debug("info", "storage", "initialization storage started");
+        this.app.debug("info", "storage", "initialization storage started", this.dbname);
         return new Promise((resolve, reject) => {
             if (!this.db) {
-                this.app.debug("info", "storage", "initialization db");
+                this.app.debug("info", "storage", "initialization db", this.dbname);
 
                 let opts = {
                     //adapter: cryptoadapter,
                     //adapter: new lfsa(),
                     autoload: true,
                     autoloadCallback: () => {
-                        this.app.debug("info", "storage", "db initialization complete");
+                        this.app.debug("info", "storage", "db initialization complete", this.dbname);
 
                         this.db.gc = (name) => {
                             let coll = this.db.getCollection(name);

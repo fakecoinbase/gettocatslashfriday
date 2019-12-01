@@ -231,12 +231,12 @@ class pow {
         return res == -1 || res == 0
     }
     difficulty(bits) {
-        let b = new BN(this.bits2target(this.app.cnf('btcpow').maxtarget), 16);
+        let b = new BN(this.bits2target(this.app.cnf('consensus').maxtarget), 16);
         let m = new BN(this.bits2target(bits), 16);
         return (b.div(m).toString(10));
     }
     currHashRate() {
-        let dif = this.difficulty(this.app.btcchain.getActualDiff());
+        let dif = this.difficulty(this.app.orwell.getActualDiff());
         let res = new BN(2, 10).pow(new BN(32, 10)).mul(new BN(dif, 10)).div(new BN(300, 10));
         return res.toString(10)
     }
@@ -264,7 +264,7 @@ class pow {
         return this.target2bits(target);
     }
     getBlockValue(fee, height) {
-
+        throw new Error('pow methods is deprecated, use app.orwell.getBlockValue');
         let emission_rules = this.app.cnf("consensus").emission;
         for (let i in emission_rules) {
             let from, to;

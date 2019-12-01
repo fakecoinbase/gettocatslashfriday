@@ -118,6 +118,7 @@ module.exports = {
         return privateKeyWIF;
     },
     generateAddress: function (pubHex) {
+        throw new Error('crypto.generateAddress is deprecated, use app.orwell.ADDRESS methods.');
         var key = (115).toString(16) + module.exports.generateAddressHash(pubHex);
         var f = module.exports.sha256(module.exports.sha256(new Buffer(key, 'hex')));
 
@@ -133,10 +134,11 @@ module.exports = {
         return base58.encode(new Buffer(res, 'hex'));
     },
     generateAddressHash: function (pubHex) {
+        throw new Error('crypto.generateAddressHash is deprecated, use app.orwell.ADDRESS methods.');
         return module.exports.ripemd160(module.exports.sha256(new Buffer(pubHex, 'hex')), 'hex');
     },
     generateAddresFromAddrHash: function (hash) {
-
+        throw new Error('crypto.generateAddresFromAddrHash is deprecated, use app.orwell.ADDRESS methods.');
         var key = (115).toString(16) + hash;
         var f = module.exports.sha256(module.exports.sha256(new Buffer(key, 'hex')));
 
@@ -165,6 +167,7 @@ module.exports = {
         return buff
     },
     getPublicKeyHashByAddr: function (addr) {
+        throw new Error('crypto.getPublicKeyHashByAddr is deprecated, use app.orwell.ADDRESS methods.');
         var key = new Buffer(base58.decode(addr));
         var buff = Buffer.alloc(20);
         for (var i = 0, k = 0; i < key.length; i++) {
@@ -179,7 +182,7 @@ module.exports = {
         return buff;
     },
     isValidAddress: function (address) {
-
+        throw new Error('crypto.isValidAddress is deprecated, use app.orwell.ADDRESS methods.');
         if (!address)
             return false;
 

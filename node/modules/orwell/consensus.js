@@ -90,7 +90,7 @@ module.exports = (app, orwell) => {
             //removePeerById(peerId) - remove  peer by id
             //removePeer(peer) remove peer
             getPeersList() {
-                let list = app.network.nodes.getMemoryList();
+                return app.network.nodes.getMemoryList();
             }
         }
 
@@ -165,8 +165,9 @@ module.exports = (app, orwell) => {
                 if (block.hash) {
                     delete block.meta
                     delete block.$loki;
-                    block.confirmation = orwell.index.get('top').height - block.height + 1;
+                    let h = block.height;
                     block = app.orwell.BLOCK.fromJSON(block);
+                    block.confirmation = orwell.index.get('top').height - h + 1;
                 } else if (id != '0000000000000000000000000000000000000000000000000000000000000000')
                     throw new Error('Block not found ' + id);
 
@@ -215,6 +216,9 @@ module.exports = (app, orwell) => {
             }
 
             getDataHeight(dataId) {
+                if (app.cnf('consensus').genesisMode)
+                    return 0;
+
                 let blockNumber = orwell.index.get('block/' + dataId).height;
                 if (!blockNumber && blockNumber != 0)
                     throw new Error('block ' + dataId + ' is not exist');
@@ -243,6 +247,8 @@ module.exports = (app, orwell) => {
                     orwell.index.setContext(options.chain + "/" + options.height);
 
                     let b = data.toJSON();
+                    let txpromises = [];
+
                     for (let i in b.tx) {
                         let tx = b.tx[i];
                         orwell.index.set(path + "tx/" + tx.hash, { block: b.hash, index: i });
@@ -285,43 +291,40 @@ module.exports = (app, orwell) => {
                                         }, options);
                                 }
 
-                                if (tx.datascript) {
-                                    this.addDSIndex({ hash: tx.hash, out: tx.out[0] }, options)
+                                if (tx.datascript && !tx.coinbase) {
+                                    this.addDSIndex({ hash: tx.hash, out: tx.out[0] }, options);
+                                    app.orwell.dsIndex.addDatascript(tx, options);
                                 }
 
-                                //TODO: remove from mempool
-                                //var mempool = require('../db/entity/tx/pool')
-                                //mempool.removeTx(tx.hash)
+                                txpromises.push(orwell.mempool.removeTx(tx.hash));
                             }
 
 
                         }
                     }
 
-                    orwell.index.set(path + "index/" + options.height, b.hash);
-                    orwell.index.set(path + "prev/" + b.hash, b.prev);
-                    orwell.index.set(path + "time/" + b.hash, b.time);
-                    orwell.index.set(path + "block/" + b.hash, {
-                        prev: b.prev,
-                        height: options.height
-                    });
-
-                    orwell.index.setContext(null);
-                    resolve(data);
+                    Promise.all(txpromises.concat([
+                        orwell.index.set(path + "index/" + options.height, b.hash),
+                        orwell.index.set(path + "prev/" + b.hash, b.prev),
+                        orwell.index.set(path + "time/" + b.hash, b.time),
+                        orwell.index.set(path + "block/" + b.hash, {
+                            prev: b.prev,
+                            height: options.height
+                        })
+                    ]))
+                        .then(() => {
+                            orwell.index.setContext(null);
+                            resolve(data);
+                        })
                 });
 
             }
 
             getTx(hash) {
                 let txk = orwell.index.get("tx/" + hash);
-
                 if (txk) {
                     let b = this.getData(txk.block);
-                    let tx = b.tx[txk.index];
-                    tx.confirmation = orwell.index.get('top').height - b.height + 1;
-                    tx.fromBlock = b.hash;
-                    tx.fromIndex = txk.index;
-                    tx.time = b.time;
+                    let tx = b.vtx[txk.index];
                     return tx;
                 } else {
                     throw new Error('can not find tx ' + hash);
@@ -335,7 +338,7 @@ module.exports = (app, orwell) => {
                 if (hash == "0000000000000000000000000000000000000000000000000000000000000000" && index_cnt == 0xffffffff)
                     return false;
                 let tx = this.getTx(hash);
-                return tx.out[index_cnt];
+                return tx.toJSON().out[index_cnt];
             }
 
             addOutIndex(data, options) {
@@ -388,8 +391,8 @@ module.exports = (app, orwell) => {
                 if (options.chain != 'main')
                     path = 'main/';
 
-                context.out.address = orwell.SCRIPT.scriptToAddr(context.out.scriptPubKey);
-                context.out.addrHash = orwell.SCRIPT.scriptToAddrHash(context.out.scriptPubKey).toString('hex');
+                context.out.address = orwell.SCRIPT.scriptToAddr(context.out.scriptPubKey || context.out.script);
+                context.out.addrHash = orwell.SCRIPT.scriptToAddrHash(context.out.scriptPubKey || context.out.script).toString('hex');
 
                 if (app.cnf('debug').indexing)
                     app.debug("info", "orwell", "add ds index " + context.out.addrHash, context.hash);

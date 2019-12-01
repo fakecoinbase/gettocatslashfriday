@@ -2,14 +2,15 @@
 module.exports = (app) => {
     let txbuilder = require('./tx/builder')(app);
     let txparser = require('./tx/parser')(app);
+    let dscript = require('orwelldb').datascript;
 
     class TX {
         constructor(data) {
             if (data)
                 this.raw = data;
             this.app = app;
-            this.inputs = [];
-            this.ouputs = [];
+            this.inputs = null;
+            this.ouputs = null;
             this.data = null;
             this.coinbase = 0;
             this.version = 1;
@@ -42,11 +43,29 @@ module.exports = (app) => {
         fromJSON(jsonobj) {
             this.parser = txparser.fromJSON(jsonobj);
             this.raw = this.parser.raw;
+
+            let k = this.parser.toJSON();
+
+            if (!this.inputs)
+                this.inputs = k['in'];
+            if (!this.outputs)
+                this.outputs = k['out'];
+
+            if (k['datascript'])
+                this.data = k['datascript'];
+
             return this;
         }
         fromHex(hex) {
-            if (this.parser instanceof txparser)
+            if (this.parser instanceof txparser) {
+                let k = this.parser.toJSON();
+                if (!this.inputs)
+                    this.inputs = k['in'];
+                if (!this.outputs)
+                    this.outputs = k['out'];
+
                 return this.parser;
+            }
 
             if (!this.raw && !hex)
                 this.toHex();
@@ -58,11 +77,17 @@ module.exports = (app) => {
                 this.parser = txparser.fromHEX(this.raw);
                 let k = this.parser.toJSON();
 
-
                 if (!this.inputs)
                     this.inputs = k['in'];
                 if (!this.outputs)
                     this.outputs = k['out'];
+
+                if (!this.data)
+                    this.data = k['datascript'];
+
+                this.lock_time = k['lock'];
+                this.version = k['version'];
+                this.data = k['datascript'];
 
                 return this;
             } else
@@ -102,14 +127,16 @@ module.exports = (app) => {
                 this.builder.setLockTime(this.lock_time);
 
             if (this.data)
-                this.builder.attachData(this.data);
+                this.builder.setDatascript(this.data);
 
             this.builder
                 .sign(this.keystore)
                 .verify()
 
-            return this.raw = this.builder.getSigned()
-
+            this.raw = this.builder.getSigned();
+            this.fromHex();
+            this.getId(true);
+            return this.raw;
         }
         getId(forse) {
             if (!this.id || forse) {
@@ -134,32 +161,74 @@ module.exports = (app) => {
                 this.fromHex();
             return this.parser.getSize();
         }
+        isCoinbase() {
+            if (!(this.parser instanceof txparser))
+                this.fromHex();
+            return this.parser.isCoinbase();
+        }
         getOutputs() {
             if (!this.outputs) {
-                if (!(this.parser instanceof txparser))
-                    this.fromHex();
+                this.fromHex();
             }
             return this.outputs
         }
         getInputs() {
             if (!this.inputs) {
-                if (!(this.parser instanceof txparser))
-                    this.fromHex();
+                this.fromHex();
             }
             return this.inputs
         }
         send() {
-
-
-
+            let tx = this.toJSON();
+            this.app.network.protocol.sendAll("mempool.tx", tx);
+            return tx.hash;
         }
         isValid(context) {
+            this.prepareDataScript();
             let val = new this.app.orwell.TX.VALIDATOR(this, context);
             let res = val.isValid();
-            if (!res[0])
-                this.validation_errors = res[1];
+            //console.log(val.getLog());
+            if (!res)
+                this.validation_errors = val.getErrors();
 
             return res;
+        }
+        getLastErrorCodes() {
+            let codes = [];
+            for (let i in this.validation_errors) {
+                codes.push(this.validation_errors[i].code);
+            }
+
+            return codes.join(",");
+        }
+        prepareDataScript() {//before validation we need prepare datascript of tx
+            if (!this.data || this.isCoinbase())
+                return;
+
+            let tx = this.toJSON();
+            let arr = this.data;
+            let datascripts = {}, dsvalid = 0;
+            for (let i in arr) {
+                let ds = new dscript(arr[i]).toJSON();
+                if (!datascripts[ds.dataset])
+                    datascripts[ds.dataset] = [];
+                if (ds.success) {
+                    dsvalid++;
+                    datascripts[ds.dataset].push(ds);
+                }
+            }
+
+            let dbname = app.orwell.SCRIPT.scriptToAddrHash(tx.out[0].script).toString('hex');
+            let dbaddress = app.orwell.SCRIPT.scriptToAddr(tx.out[0].script);
+            let a = app.orwell.SCRIPT.sigToArray(tx.in[0].sig);
+
+            this.preparedDS = {
+                dbaddress: dbaddress,
+                dbname: dbname,
+                writer_key: a.publicKey,
+                count: dsvalid,
+                data: datascripts
+            }
         }
     }
 
@@ -192,19 +261,18 @@ module.exports = (app) => {
 
         for (let i in inputs) {
             if (inputs[i].index === 0xffffffff && (!inputs[i].hash || inputs[i].hash == '0000000000000000000000000000000000000000000000000000000000000000')) {
-                inputs[i].prevAddress = app.orwell.ADDRESS.generateAddressFromPublicKey(keys[i]);
+                inputs[i].prevAddress = app.orwell.ADDRESS.generateAddressFromPublicKey(app.crypto.getPublicByPrivate(keys[i]));
             }
         }
 
         tx
+            .setVersion(version)
             .setInputs(inputs)
             .setOutputs(outputs)
             .setKeystore(keys)
 
         if (lock_time)
             tx.setLockTime(lock_time);
-
-        tx.setVersion(version);
 
         if (ds)
             tx.attachData(ds);
@@ -213,14 +281,20 @@ module.exports = (app) => {
         return tx;
     }
 
-    TX.createCoinbase = function (keys, height) {
+    TX.createCoinbase = function (fee, coinbaseBytes, keys, height) {
+        if (!fee)
+            fee = 0;
+
         if (!height)
             height = app.orwell.getTopInfo().height;
+        if (app.cnf('consensus').genesisMode)
+            height = -1;
         //orwell network have not coinbase transaction (need pubkey of block creator)
+        
         return TX.createFromJSON({
             version: app.cnf('consensus').version,
-            in: [{ index: 0xffffffff }],
-            out: [{ address: app.crypto.generateAddress(app.crypto.getPublicByPrivate(keys[0])), amount: app.pow.getBlockValue(0, height) }],
+            in: [{ index: 0xffffffff, coinbase: coinbaseBytes }],
+            out: [{ address: app.orwell.ADDRESS.generateAddressFromPublicKey(app.crypto.getPublicByPrivate(keys[0])), amount: app.orwell.getBlockValue(fee, height + 1) }],
             lock: 0
         }, keys);
     }

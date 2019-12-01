@@ -14,6 +14,7 @@ class app extends EventEmitter {
         if (config.cwd)
             this.cwd = config.cwd + "/node/";
 
+        this.f_noconflict = false;
         this.fisReadySended = false;
         this.appstate = '';
         this.prevappstate = '';
@@ -23,20 +24,18 @@ class app extends EventEmitter {
 
         process.on('unhandledRejection', (reason, p) => {
             console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
-          });
+        });
 
         this.loadModule('config')
             .then(() => {
                 this.loadConfig(config);
 
                 //load system modules
-                let def = [
+                return Promise.all([
                     this.loadToolset('crypto'),
                     this.loadToolset('tools'),
                     this.loadModule('db'),
-                ];
-
-                return Promise.all(def)
+                ])
             })
             .then(() => {
                 this.emit("_caninit");
@@ -62,6 +61,10 @@ class app extends EventEmitter {
     skipModules(skiplist) {
         this.skiplist = skiplist;
     }
+    //skil settings and modules for start 2 or more instances, must invoke before init()
+    noConflict(cb) {
+        this.f_noconflict = cb;
+    }
     init(modules) {
 
         return new Promise((res) => {
@@ -70,9 +73,16 @@ class app extends EventEmitter {
                 if (!modules)
                     modules = this.cnf('modules');
 
+                if (this.f_noconflict instanceof Function)
+                    this.f_noconflict.apply(this, ['beforeload']);
+
                 return this.loadModules(modules)
                     .then((results) => {
                         this.debug('info', "app", 'loaded all modules; sending init event');
+
+                        if (this.f_noconflict instanceof Function)
+                            this.f_noconflict.apply(this, ['beforeinit']);
+
                         this.emit("init", results);
                         res(results);
                     })
@@ -109,28 +119,7 @@ class app extends EventEmitter {
                 prevState = this.loadModule(arr[i], false, prevState)
         }
 
-        /*let list = [];
-        for (let i in arr) {
-            if (arr[i] instanceof Array)
-                list.push(this.loadModule(arr[i][0], arr[i][1]))
-            else
-                list.push(this.loadModule(arr[i]))
-        }
-
-        let res = new Promise(function (result) {
-            list[0].then(() => {
-                result()
-            });
-        });
-
-        for (let i in list) {
-            res = res.then((r) => {
-                return list[i + 1];
-            });
-        }*/
-
         return prevState;
-        //return Promise.all(list)
     }
     loadModule(name, modulepath, prevState) {
         let filepath = path.resolve(name);

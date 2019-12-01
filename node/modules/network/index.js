@@ -6,6 +6,7 @@ class network {
         this.reconnects = [];
         this.node = {};
         this.inited = false;
+
     }
     init() {
 
@@ -37,31 +38,22 @@ class network {
         if (this.inited)
             return;
         this.app.on("net.connection.add", (socket, from) => {
-            var o = {}
-            /*if (from != 'server')
-                o = {
-                    remoteAddress: socket.remoteAddress.replace("::ffff:", ""),
-                    remotePort: socket.localPort,
-                    localAddress: socket.localAddress.replace("::ffff:", ""),
-                    port: socket.remotePort
-                };
-            else*/
-            o = {
+            let o = {
                 remoteAddress: socket.remoteAddress.replace("::ffff:", ""),
                 remotePort: socket.remotePort,
                 localAddress: socket.localAddress.replace("::ffff:", ""),
                 port: socket.localPort
             }
 
-            var addr = this.protocol.getAddressUniq(o)
+            let addr = this.protocol.getAddressUniq(o)
             this.app.debug('info', 'network', "add peer " + addr, from);
 
-            var list = this.nodes.get("connections");
+            let list = this.nodes.get("connections");
             if (!list || !(list instanceof Array))
                 list = [];
 
-            var finded = false;
-            for (var i in list) {
+            let finded = false;
+            for (let i in list) {
                 if (list[i] && list[i] == addr) {
                     finded = true;
                     break;
@@ -75,13 +67,17 @@ class network {
             //connection new event
             socket.STATUS = 1;
             this.nodes.set("connection/" + addr, socket);
-            this.app.emit("net.connection.new", addr, socket);
-            this.app.emit("net.node.connected" + addr, socket);
+            this.app.emit("net.node.add", addr);
         });
 
         this.app.on("net.connection.remove", (addr, from) => {
 
             this.app.debug('info', 'network', "remove peer " + addr, from);
+
+            let socket = this.nodes.get("connection/" + addr);
+
+            if (socket && socket.destroyed !== true)
+                return;
 
             var list = this.nodes.get("connections");
             if (!list || !(list instanceof Array))
@@ -109,14 +105,29 @@ class network {
             };
         })
 
-        this.app.on("net.node.add", (addr, cb) => {
-            this.__addNode(addr, function (client) {
+        this.app.on("net.node.add", (addr, afterInit) => {
+            this.__addNode(addr, (client) => {
 
-                cb({
+                let rinfo = {
                     remoteAddress: client.remoteAddress,
                     remotePort: client.localPort,
                     port: client.remotePort
-                })
+                };
+
+                if (afterInit instanceof Function)
+                    afterInit(rinfo);
+
+                let d = this.protocol.nodes.get("data/" + this.protocol.getAddressUniq(rinfo));
+                d.initiator = 1;
+                this.protocol.nodes.set("data/" + this.protocol.getAddressUniq(rinfo), d);
+
+                this.protocol.sendOne(rinfo, 'version', {
+                    version: this.app.cnf('consensus').version || 0,
+                    lastblock: this.app.orwell.index.getTop(),
+                    agent: this.protocol.getUserAgent(),
+                    nodekey: this.protocol.getNodeKey(),
+                    timezone: 0//offset UTC
+                }, true)
 
             });
 
@@ -152,10 +163,12 @@ class network {
 
             if (!socket.remoteAddress)
                 return;
-            //if (from == 'server')
-            var rinfo = { remoteAddress: socket.remoteAddress, remotePort: socket.remotePort, port: socket.localPort };
-            //else
-            //   var rinfo = { remoteAddress: socket.remoteAddress, remotePort: socket.localPort, port: socket.remotePort };
+            let rinfo;
+
+            if (from == 'server')
+                rinfo = { remoteAddress: socket.remoteAddress, remotePort: socket.remotePort, port: socket.localPort };
+            else
+                rinfo = { remoteAddress: socket.remoteAddress, remotePort: socket.localPort, port: socket.remotePort };
 
             this.nodes.updateRecvBytes(rinfo, new Buffer(data).length);
 
@@ -255,9 +268,8 @@ class network {
             //remove old connection
             this.app.emit("net.connection.remove", addr);
             this.p2p.newClient(a.remoteAddress, a.port, (client) => {
-                this.app.emit("net.connection", client)
                 this.app.emit("net.connection.add", client, 'client');
-                this.app.emit("net.node.init" + this.app.network.protocol.getAddressUniq(client));
+                //this.app.emit("net.node.init" + this.app.network.protocol.getAddressUniq(client));
                 cb(client);
 
 
@@ -296,7 +308,9 @@ class network {
         if (!isFirstMessage) {
             let nodeinfo = this.nodes.get("data/" + addr);
             //ENCRYPT MESSAGE
-            let publicKey = nodeinfo.key;
+            let publicKey = nodeinfo.nodekey;
+            if (!publicKey)
+                throw new Error('can not find node public key ' + addr);
             //create ecdh X | publicKey, keystore -> X
             let X = this.app.crypto.createECDHsecret(publicKey, this.app.cnf('node'));
             //encrypt value with | X, value -> encvalue
@@ -312,7 +326,7 @@ class network {
             return buffer;
         } else {
             let nodeinfo = this.nodes.get("data/" + addr);
-            let publicKey = nodeinfo.key;
+            let publicKey = nodeinfo.nodekey;
             let X = this.app.crypto.createECDHsecret(publicKey, this.app.cnf('node'));
             return this.app.crypto.decryptECDH(buffer, X);
         }
@@ -343,24 +357,27 @@ class network {
 
         res = r.uint32(res.offset);
         d.checksum = new Buffer(this.app.tools.bitPony.tool.numHex(res.result), 'hex').toString('hex');
+        let osum = this.app.tools.bitPony.tool.numHex(res.result);
 
         if (d.checksum.length == 6)
-            d.checksum += "00";
+            d.checksum = "00" + d.checksum;
 
         if (d.checksum.length == 4)
-            d.checksum += "0000";
+            d.checksum = "0000" + d.checksum;
 
         if (d.checksum.length == 2)
-            d.checksum += "000000";
+            d.checksum = "000000" + d.checksum;
 
         res = r.char(d.payloadlength, res.offset);
         d.payload = res.result;
 
         let sum = this.app.tools.bitPony.tool.sha256(this.app.tools.bitPony.tool.sha256(d.payload)).slice(0, 4);
+
         if (d.payloadlength != d.payload.length)
             throw new Error('invalid size of payload ' + d.payloadlength + ' - ' + d.payload.length);
 
         if (sum.toString('hex') != d.checksum) {
+            console.log("orig checksum", osum, "new checksum", d.checksum, "after: ", d.checksum, "diff:", sum);
             throw new Error(' invalid checksum ' + sum.toString('hex') + " - " + d.checksum);
         }
         if (d.magic != this.separator())
@@ -370,7 +387,13 @@ class network {
     }
     __send(addr, msg, isFirstMessage) {
 
-        let encryptedBuffer = this.encryptMessage(msg, addr, isFirstMessage);
+        let encryptedBuffer;
+        try {
+            encryptedBuffer = this.encryptMessage(msg, addr, isFirstMessage);
+        } catch (e) {
+            this.app.debug('network', 'error', ' can not find node public key, maybe node is not inited? ' + addr)
+            return false;
+        }
         msg = this.buildTransportLayer(encryptedBuffer, !isFirstMessage);
         let sendmessage = function (msg, socket) {
             socket.write(msg, function () {

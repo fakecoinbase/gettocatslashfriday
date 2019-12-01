@@ -1,7 +1,8 @@
 class index {
-    constructor(app, name, inmemory) {
+    constructor(app, name, inmemory, dbname) {
         this._cache = {};
         this.app = app;
+        this.dbname = dbname ? dbname : 'index';
         this.class = null;
         this.coll = null;
         this.name = name;
@@ -11,8 +12,8 @@ class index {
     init() {
         if (!this.db || !this.coll) {
             if (!this.inmemory) {
-                this.db = this.app.storage.getConnection('index');
-                this.coll = this.app.storage.getCollection(this.name, 'index');
+                this.db = this.app.storage.getConnection(this.dbname);
+                this.coll = this.app.storage.getCollection(this.name, this.dbname);
             }
         }
     }
@@ -59,17 +60,40 @@ class index {
             throw new Error('inmemory only');
         return this.coll.find(fields);
     }
-    remove(key) {
-        if (this.inmemory) {
-            delete this._cache[this.name][key];
-            return true;
+    getList() {
+        if (this.inmemory)
+            return this.getMemoryList();
+
+        return this.find({});
+    }
+    clear() {
+        let pr = Promise.resolve();
+
+        let list = this.getList();
+        for (let i in list) {
+            pr = pr.then(() => {
+                return new Promise((resolve) => {
+                    this.remove(list[i].key);
+                    resolve();
+                })
+            });
         }
 
-        let val = this.coll.findOne({ 'key': key });
-        if (val)
-            this.coll.remove(val);
+        return pr;
+    }
+    remove(key) {
+        return new Promise((resolve) => {
+            if (this.inmemory) {
+                delete this._cache[this.name][key];
+                resolve(true);
+            }
 
-        return !!val;
+            let val = this.coll.findOne({ 'key': key });
+            if (val)
+                this.coll.remove(val);
+
+            resolve(!!val);
+        });
     }
     getMemoryList() {
         if (!this.inmemory)

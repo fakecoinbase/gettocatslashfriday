@@ -1,5 +1,150 @@
 module.exports = function (app, chain) {
 
+    let dsTools = {
+        getDatascriptList: function (dbname, raw, byDataSet) {
+            return app.orwell.getDatascriptList(dbname, raw, byDataSet);
+        },
+        checkfee: function (datascripts_arr, bytesLength, tx) {
+            let opfee = 0;
+            for (let dataset in datascripts_arr) {
+                for (let k in datascripts_arr[dataset]) {
+                    opfee += app.cnf('wallet').operationfee[datascripts_arr[dataset][k].operator]
+                }
+            }
+
+            opfee += bytesLength * app.cnf('consensus').minfeeperbyte;
+            let l = tx.out;
+            let outamount = 0;
+            for (let k in l) {
+                let res = l[k].amount;
+                outamount += res;
+            }
+
+            let inamount = 0;
+            for (let k in tx.in) {
+                let p = app.orwell.getOut(tx.in[k].hash, tx.in[k].index);
+                if (p) {
+                    inamount += p.amount;
+                }
+            }
+
+            return inamount - outamount >= opfee;
+        },
+        getLastSettings: function (ds, datasetname, list) {
+            let lastsett = null, owner = null
+            let l = list[datasetname];
+            for (let i in l) {
+                if (l[i].operator == 'settings' || l[i].operator == 'create') {
+                    lastsett = l[i];
+                    if (!owner && lastsett.content && lastsett.content.owner_key)
+                        owner = lastsett.content.owner_key
+                }
+            }
+
+            if (!lastsett) {
+                for (let i in ds) {
+                    if (ds[i].operator == 'settings' || ds[i].operator == 'create') {
+                        lastsett = ds[i];
+                        if (!owner && lastsett.content && lastsett.content.owner_key)
+                            owner = lastsett.content.owner_key
+                    }
+                }
+            }
+
+            if (lastsett && lastsett.content)//hack. Settings does not have owner_key (its little bit a bug)
+                lastsett.content.owner_key = owner;
+
+            return lastsett;
+        },
+        checkOwner: function (ds) {
+            if (ds.operator == 'settings') {
+
+                let lastsett = dsTools.getLastSettings(ds.dataset);
+                if (!lastsett)//not possible situation (in ordinary way)
+                    return false;
+
+                return lastsett.owner_key == pubkey;
+            }
+
+            return true;
+        },
+        checkDomainHistory: function (pubkey, content) {
+            let writers = [], l = list['domain'];
+
+            for (let k in l) {
+                let history = l[k];
+                if (history.operator != 'write')
+                    continue;
+
+                if (history.content && history.content.domain == content.domain && history.writer)
+                    writers.push(history.writer)
+            }
+
+            if (writers.length > 0) {//update
+                //check owner or previous writer
+                if (writers.indexOf(pubkey) >= 0)
+                    return true;
+                else {
+                    return false;
+                }
+            }
+
+            return true;//insert
+        },
+        checkTokenHistory(pubkey, content) {
+            let writers = [], l = list['token'];
+
+            for (let k in l) {
+                let history = l[k];
+                if (history.operator != 'write')
+                    continue;
+
+                if (history.content && history.content.ticker == content.ticker && history.writer)
+                    writers.push(history.writer)
+            }
+
+            if (writers.length > 0) {//update
+                //check owner or previous writer
+                if (writers.indexOf(pubkey) >= 0)
+                    return true;
+                else {
+                    return false;
+                }
+            }
+
+            return true;//insert
+        },
+        isToken(address) {
+
+            let records = app.orwell.dsIndex.getRecords(app.orwell.ADDRESS.getPublicKeyHashByAddress(app.cnf('orwelldb').systemAddress).toString('hex'), 'tokens');
+            for (let k in records) {
+                if (records[k].mainAddress == address) {
+                    return true;
+                }
+            }
+
+            return false;
+
+        },
+        getTokenSettings(address) {
+            let records = app.orwell.dsIndex.getRecords(app.orwell.ADDRESS.getPublicKeyHashByAddress(app.cnf('orwelldb').systemAddress).toString('hex'), 'tokens');
+            for (let k in records) {
+                if (records[k].mainAddress == address) {
+                    return records[k];
+                }
+            }
+
+            return false;
+
+        },
+        isValidTokenMessage(settings, datascripts) {
+
+
+            return true;
+        }
+    }
+
+
     transactions();
     blocks();
 
@@ -9,25 +154,49 @@ module.exports = function (app, chain) {
         chain.TX.VALIDATOR.addRule('syntax', function (validator, context, app_) {
             let tx = this;
 
-            let hex = tx.toHEX();
-            let tx1 = chain.TX.fromHEX(app, hex);
+            let hex = tx.toHex();
+            let tx1 = chain.TX.fromHEX(hex);
 
             if (tx1.getHash(true) == tx.getHash()) {//generated hash from hex == old hash from checking tx - valid
                 return true;
             }
 
-            app.throwError("Transaction syntax is invalid", 'tx_syntax_invalid');
+            return validator.addError("Transaction syntax is invalid", 'tx_syntax_invalid');
+        });
+        //sign verify
+        chain.TX.VALIDATOR.addRule('sig', function (validator, context, app_) {
+            let tx = this.toJSON();
+
+            let builder = new chain.TX.builder(app);
+            builder
+                .setVersion(tx.version)
+                .setInputs(tx.in)
+                .setOutputs(tx.out)
+                .setLockTime(tx.lock_time)
+                .setSigned(this.toHex());
+
+            if (tx.datascript)
+                builder.setDatascript(tx.datascript);
+
+            let result = builder
+                .verify()
+
+            if (!result) {
+                return validator.addError("Transaction sign is invalid", 'tx_sign_invalid');
+            }
+
+            return true;
         });
         //Make sure neither in or out lists are empty
         chain.TX.VALIDATOR.addRule('inout', function (validator, context, app_) {
             let tx = this;
 
-            if (tx.getInputs() < 1) {
-                app.throwError("Transaction inputs is empty", 'tx_inputs_empty');
+            if (tx.getInputs().length < 1) {
+                return validator.addError("Transaction inputs is empty", 'tx_inputs_empty');
             }
 
-            if (tx.getOutputs() < 1) {
-                app.throwError("Transaction outputs is empty", 'tx_outputs_empty');
+            if (tx.getOutputs().length < 1) {
+                return validator.addError("Transaction outputs is empty", 'tx_outputs_empty');
             }
 
 
@@ -38,11 +207,11 @@ module.exports = function (app, chain) {
             let tx = this;
 
             if (tx.getSize() >= app.cnf("consensus").blockSize) {
-                app.throwError("Transaction size is over MAX_BLOCK_SIZE", 'tx_size_big');
+                return validator.addError("Transaction size is over MAX_BLOCK_SIZE", 'tx_size_big');
             }
 
             if (tx.getSize() < 100) {
-                app.throwError("Transaction size is smaller than 100 bytes", 'tx_size_less');
+                return validator.addError("Transaction size is smaller than 100 bytes", 'tx_size_less');
             }
 
             return true;
@@ -53,11 +222,11 @@ module.exports = function (app, chain) {
 
             let outs = tx.getOutputs();
             for (let i in outs) {
-                if (outs[i].amount < app.cnf("consensus").satoshi)
-                    app.throwError("Transaction out[" + i + "] size is less than 1 satoshi", 'tx_out_amount_less');
+                //if (outs[i].amount < 1)
+                //    return validator.addError("Transaction out[" + i + "] size is less than 1 satoshi", 'tx_out_amount_less');
 
                 if (outs[i].amount > app.cnf("consensus").maxcoins * app.cnf("consensus").satoshi)
-                    app.throwError("Transaction out[" + i + "] size is begger than max coins", 'tx_out_amount_bigger');
+                    return validator.addError("Transaction out[" + i + "] size is begger than max coins", 'tx_out_amount_bigger');
             }
 
             return true;
@@ -67,15 +236,20 @@ module.exports = function (app, chain) {
             if (!(context.trigger == 'block' && context.index != 0)) {
                 let tx = this;
 
+                if (tx.isCoinbase())
+                    return true;
+
                 let ins = tx.getInputs();
                 for (let i in ins) {
+                    if (i == 0)
+                        continue;
 
                     if (ins[i].hash == '0000000000000000000000000000000000000000000000000000000000000000' && ins[i].index == 0xffffffff)
-                        app.throwError("Transaction in[" + i + "] is coinbase", 'tx_in_coinbase');
+                        return validator.addError("Transaction in[" + i + "] is coinbase", 'tx_in_coinbase');
                 }
 
                 return true;
-            } 
+            }
             return true;
         });
         //Check that nLockTime <= INT_MAX[1], and sig opcount <= 2[3]
@@ -83,7 +257,7 @@ module.exports = function (app, chain) {
             let tx = this;
 
             if (tx.lock_time > 2147483647)
-                app.throwError("Transaction lock_time is bigger than INT_MAX", 'tx_locktime_bigger_limit');
+                return validator.addError("Transaction lock_time is bigger than INT_MAX", 'tx_locktime_bigger_limit');
 
             return true;
         });
@@ -95,11 +269,14 @@ module.exports = function (app, chain) {
             //now implementet only P2PKH, in future: Multisig too
             let ins = tx.getInputs();
             for (let i in ins) {
-                let out = app.btcchain.getOut(ins[i].hash, ins[i].index);
+                if (tx.isCoinbase() && i == 0)
+                    continue;
+                let out = app.orwell.getOut(ins[i].hash, ins[i].index);
+
                 //todo: out.address maybe too? and for rule: doublespending
-                let res = app.btcchain.SCRIPT.isP2PKH(app, new Buffer(out.scriptPubKey, 'hex'));
+                let res = app.orwell.SCRIPT.isP2PKH(new Buffer(out.scriptPubKey || out.script, 'hex'));
                 if (!res)
-                    app.throwError("Transaction scriptSig is nonstandart", 'tx_scriptsig_nonstandart');
+                    return validator.addError("Transaction scriptPubKey is nonstandart", 'tx_scriptsig_nonstandart');
             }
 
             return true;
@@ -107,14 +284,15 @@ module.exports = function (app, chain) {
         //Reject if we already have matching tx in the pool, or in a block in the main branch
         chain.TX.VALIDATOR.addRule('existTx', function (validator, context, app_) {
             let tx = this;
+            let t = tx.toJSON();
 
             //todo check in mempool
             //todo check in orphan blocks
             if (context.trigger == 'relay') {
                 try {
-                    let tx = app.btcchain.getTx(this.getHash());
+                    let tx = app.orwell.getTx(t.hash).toJSON();
                     if (tx.hash)
-                        app.throwError('tx already exist in blockchain', 'tx_exist');
+                        return validator.addError('tx already exist in blockchain', 'tx_exist');
                 } catch (e) {
                 }
             }
@@ -128,10 +306,13 @@ module.exports = function (app, chain) {
 
             let outs = tx.getInputs();
             for (let i in outs) {
-                let prev = app.btcchain.getOut(outs[i].hash, outs[i].index);
+                if (tx.isCoinbase() && i == 0)
+                    continue;
+
+                let prev = app.orwell.getOut(outs[i].hash, outs[i].index);
                 //todo: prev.scriptPubKey maybe too?  and for rule: standartScriptSig
-                if (!prev.address && !prev.scriptPubKey)
-                    app.throwError('Tx previous out is not finded', 'tx_prevout_missing');
+                if (!prev.address && !prev.scriptPubKey && !prev.script)
+                    return validator.addError('Tx previous out is not finded', 'tx_prevout_missing');
 
             }
 
@@ -142,17 +323,23 @@ module.exports = function (app, chain) {
 
         //For each input, if the referenced output does not exist (e.g. never existed or has already been spent), reject this transaction[6]
         chain.TX.VALIDATOR.addRule('doublespending', function (validator, context, app_) {
-            let tx = this;
+            let tx = this.toJSON();
 
-            let outs = tx.getInputs();
-            for (let i in outs) {
-                let prev = app.btcchain.getOut(outs[i].hash, outs[i].index);
+            let ins = tx.in;
+            for (let i in ins) {
+                if (tx.coinbase && i == 0)
+                    continue;
+
+                let prev = app.orwell.getOut(ins[i].hash, ins[i].index);
                 if (!prev)
-                    app.throwError('Tx prev out is not exist', 'tx_prevout_missing');
+                    return validator.addError('Tx prev out is not exist', 'tx_prevout_missing');
                 //todo: prev.scriptPubKey maybe too?  and for rule: standartScriptSig
-                let info = app.btcchain.utxo.getUTXOInfo(prev.address, outs[i].hash, outs[i].index);
-                if (!info || info.spentHash != '')
-                    app.throwError('Tx doublespended', 'tx_doublespending');
+                let info = app.orwell.utxo.getUTXOInfo(prev.address, ins[i].hash, ins[i].index);
+                //console.log(tx, info);
+                //console.log(tx.hash, info.spentHash, ins[i].hash)
+                //console.log(this.toHex());
+                if (!info || (info.spentHash && info.spentHash != tx.hash))
+                    return validator.addError('Tx doublespended', 'tx_doublespending');
 
             }
 
@@ -165,11 +352,13 @@ module.exports = function (app, chain) {
             if (context.trigger == 'relay') {
                 let ins = tx.getInputs();
                 for (let i in ins) {
-                    let prevtx = app.btcchain.getTx(ins[i].hash);
+                    if (tx.isCoinbase() && i == 0)
+                        continue;
+                    let prevtx = app.orwell.getTx(ins[i].hash);
                     if (prevtx.coinbase) {
                         let index = prevtx.fromIndex;
-                        if (app.btcchain.index.getTop().height - index > app.cnf("consensus").maturity) {
-                            app.throwError('Tx coinbase maturity', 'tx_maturity');
+                        if (app.orwell.index.getTop().height - index > app.cnf("consensus").maturity) {
+                            return validator.addError('Tx coinbase maturity', 'tx_maturity');
                         }
 
                     }
@@ -184,54 +373,66 @@ module.exports = function (app, chain) {
             let tx = this;
 
             let outs = tx.getInputs();
+            let outsum = 0;
             for (let i in outs) {
-                let prev = app.btcchain.getOut(outs[i].hash, outs[i].index);
+                if (tx.isCoinbase() && i == 0)
+                    continue;
+
+                let prev = app.orwell.getOut(outs[i].hash, outs[i].index);
                 if (!prev)
-                    app.throwError('Tx prev out is not exist', 'tx_prevout_missing');
+                    return validator.addError('Tx prev out is not exist', 'tx_prevout_missing');
                 //todo: prev.scriptPubKey maybe too?  and for rule: standartScriptSig
 
                 if (prev.amount < app.cnf("consensus").satoshi)
-                    app.throwError("Transaction in[" + i + "].prevout.amount size is less than 1 satoshi", 'tx_in_prevout_amount_less');
+                    return validator.addError("Transaction in[" + i + "].prevout.amount value is less than 1 satoshi", 'tx_in_prevout_amount_less');
 
                 if (prev.amount > app.cnf("consensus").maxcoins * app.cnf("consensus").satoshi)
-                    app.throwError("Transaction in[" + i + "].prevout.amount size is begger than max coins", 'tx_in_prevout_amount_bigger');
+                    return validator.addError("Transaction in[" + i + "].prevout.amount value is begger than max coins", 'tx_in_prevout_amount_bigger');
 
+                outsum += prev.amount;
             }
+
+            if (outsum > app.cnf("consensus").maxcoins * app.cnf("consensus").satoshi)
+                return validator.addError("Transaction SUM(in.prevout.amount) value is begger than max coins", 'tx_in_sum_amount_bigger');
+
 
             return true;
         });
         //Reject if the sum of input values < sum of output values
         //Reject if transaction fee (defined as sum of input values minus sum of output values) would be too low to get into an empty block
         chain.TX.VALIDATOR.addRule('fee', function (validator, context, app_) {
-            let tx = this;
             let sum_in = 0;
             let sum_out = 0;
+            let tx_ = this.toJSON();
 
-            let ins = tx.getInputs();
+            let ins = tx_.in;
             for (let i in ins) {
-                let prev = app.btcchain.getOut(ins[i].hash, ins[i].index);
+                if (tx_.coinbase && i == 0)
+                    continue;
+
+                let prev = app.orwell.getOut(ins[i].hash, ins[i].index);
                 if (!prev)
-                    app.throwError('Tx prev out is not exist', 'tx_prevout_missing');
+                    return validator.addError('Tx prev out is not exist', 'tx_prevout_missing');
 
                 sum_in += prev.amount;
-
             }
 
-            let outs = tx.getOutputs();
+            let outs = tx_.out;
             for (let i in outs) {
                 sum_out += outs[i].amount;
             }
 
-            if (sum_in < sum_out)
-                app.throwError('Tx sum input and output range is invalid', 'tx_fee_invalid');
+            if (sum_in < sum_out && !tx_.coinbase)
+                return validator.addError('Tx sum input and output range is invalid', 'tx_fee_invalid');
 
             let fee = sum_in - sum_out;
-            let t = app.btcchain.TX.fromJSON(app, tx);
-            let size = t.getSize();
+            let size = tx_.size;
+            let isCoinbase = tx_.coinbase;
 
             let cost = fee / size;
-            if (cost < app.cnf("consensus").minfeeperbyte) {
-                app.throwError('Fee is less then min value', 'tx_fee_less_min');
+
+            if (cost < app.cnf("consensus").minfeeperbyte && !isCoinbase) {
+                return validator.addError('Fee is less then min value2', 'tx_fee_less_min');
             }
 
             return true;
@@ -242,19 +443,24 @@ module.exports = function (app, chain) {
             let sum_in = 0;
             let sum_out = 0;
 
-            let ins = tx.getInputs();
-            for (let i in ins) {
-                let prev = app.btcchain.getOut(ins[i].hash, ins[i].index);
-                if (!prev)
-                    app.throwError('Tx prev out is not exist', 'tx_prevout_missing');
+            let tx_ = tx.toJSON();
 
-                let addrhash = app.btcchain.SCRIPT.scriptToAddrHash(prev.scriptPubKey).toString('hex');
-                let pubKey = app.btcchain.SCRIPT.sigToArray(ins[i].scriptSig).publicKey;
-                let address = app.btcchain.ADDRESS.generateAddressFromPublicKey(pubKey);
-                let addrhashmy = app.btcchain.SCRIPT.getPublicKeyHashByAddress(address).toString('hex');
-                var res = addrhashmy == addrhash
+            for (let i in tx_.in) {
+                if (tx.isCoinbase() && i == 0)
+                    continue;
+
+                let prev = app.orwell.getOut(tx_.in[i].hash, tx_.in[i].index);
+                if (!prev)
+                    return validator.addError('Tx prev out is not exist', 'tx_prevout_missing');
+
+                let addrhash = app.orwell.SCRIPT.scriptToAddrHash(prev.scriptPubKey || prev.script).toString('hex');
+                let pubKey = app.orwell.SCRIPT.sigToArray(tx_.in[i].scriptSig || tx_.in[i].sig).publicKey;
+                let address = app.orwell.ADDRESS.generateAddressFromPublicKey(pubKey);
+                let addrhashmy = app.orwell.ADDRESS.getPublicKeyHashByAddress(address).toString('hex');
+                let res = addrhashmy == addrhash
+
                 if (!res) {
-                    app.throwError('Tx scriptSig is not spendable', 'tx_unspendable');
+                    return validator.addError('Tx scriptSig is not spendable', 'tx_unspendable');
                 }
 
             }
@@ -267,7 +473,538 @@ module.exports = function (app, chain) {
         //For each orphan transaction that uses this one as one of its inputs, run all these steps (including this one) recursively on that orphan
 
 
+        //datascript check
 
+        //ds_countisvalid
+        //dbisexist
+        //settingsCanChangeOnlyOwner
+        //createOnlyOnce
+        //canWrite
+        //canEdit
+        //dsfee 
+        //domaincheck
+
+        //same count raw ds and unserialized
+        chain.TX.VALIDATOR.addRule('ds_count', function (validator, context, app_) {
+            let tx = this;
+            let tx_ = tx.toJSON();
+
+
+            if (!tx_.datascript)
+                return true;
+
+            let arr = tx_.datascript || [];
+            let res = arr.length == tx.preparedDS.count;
+            if (!res)
+                return validator.addError('Invalid count datascript: ' + arr.length + ' - ' + tx.preparedDS.count, 'ds_count_invalid');
+            return res;
+        });
+
+        //
+        chain.TX.VALIDATOR.addRule('dbisexist', function (validator, context, app_) {
+            let tx = this.toJSON();
+
+            if (!tx.datascript)
+                return true;
+
+            let dbname = this.preparedDS.dbname;
+            let pubkey = this.preparedDS.writer_key;
+            let list = dsTools.getDatascriptList(dbname, false, true);
+            let datascripts = this.preparedDS.data;
+
+            //get all ds list to this db
+            //check - first ds !!!must be create only!!!
+            //transaction with datascript ins:
+            //0 - one input with scriptSig, which contain pubkey from privileges
+            //transaction with datascripts outs:
+            //0 - destination db with amount > opfee
+            //1 - change
+            let res = [];
+
+            for (let datasetname in datascripts) {
+                let ds = datascripts[datasetname];
+
+                let first = null;
+                if (list[datasetname] && list[datasetname].length) {
+                    first = list[datasetname][0];
+                } else {
+                    first = ds[0];
+                }
+
+                if (first.operator != 'create') {
+                    res.push(0);
+                    return validator.addError("datascript[" + i + "] dataset " + datasetname + " already created correctly: false", 'ds_incorrect_creation');
+                } else
+                    res.push(1);
+
+            }
+
+
+            let sum = 0;
+            for (let i in res) {
+                sum += res[i];
+            }
+
+            return sum == res.length
+
+
+        });
+
+        chain.TX.VALIDATOR.addRule('settingsCanChangeOnlyOwner', function (validator, context, app_) {
+            let tx = this.toJSON();
+
+            if (!tx.datascript)
+                return true;
+
+            let dbname = this.preparedDS.dbname;
+            let pubkey = this.preparedDS.writer_key;
+            let list = dsTools.getDatascriptList(dbname, false, true);
+            let datascripts = this.preparedDS.data;
+
+            let res = [];
+
+            for (let datasetname in datascripts) {
+                let ds = datascripts[datasetname];
+
+                for (let k in ds) {
+
+                    if (ds[k] == 'settings') {
+
+                        if (!dsTools.checkOwner(ds[k])) {
+                            res.push(0);
+                            return validator.addError("datascript[" + i + "].settings changed by owner: false", 'ds_settings_change_onlyowner');
+                        } else
+                            res.push(1);
+
+                    }
+
+                }
+
+            }
+
+
+            let sum = 0;
+            for (let i in res) {
+                sum += res[i];
+            }
+
+            return sum == res.length
+        });
+
+        chain.TX.VALIDATOR.addRule('createOnlyOnce', function (validator, context, app_) {
+
+            let tx = this.toJSON();
+            if (!tx.datascript)
+                return true;
+
+
+            let dbname = this.preparedDS.dbname;
+            let pubkey = this.preparedDS.writer_key;
+            let list = dsTools.getDatascriptList(dbname, false, true);
+            let datascripts = this.preparedDS.data;
+
+            let res = [];
+            for (let datasetname in datascripts) {
+                let ds = datascripts[datasetname];
+
+                let findedCreate = 0;
+                for (let k in ds) {
+                    if (ds[k].operator == 'create')
+                        findedCreate++;
+                }
+
+                let findedInDB = false;
+                if (list[datasetname]) {
+                    let first = list[datasetname][0];
+                    if (first && first.operator == 'create')
+                        findedInDB = true;
+                }
+
+                if (findedInDB) {
+                    if (findedCreate == 0) {
+                        res.push(1);
+                    } else {
+                        return validator.addError("datascript in dataset " + datasetname + " is create op, have in db: true, have in ds only one: false");
+                        res.push(0);
+                    }
+                } else {
+                    if (findedCreate == 1) {
+                        res.push(1);
+                    } else {
+                        res.push(0)
+                        return validator.addError("datascript in dataset " + datasetname + " is create op, have in db: false, have in ds only one: false");
+                    }
+                }
+
+            }
+
+            let sum = 0;
+            for (let i in res) {
+                sum += res[i];
+            }
+
+            return sum == res.length
+
+        });
+
+        chain.TX.VALIDATOR.addRule('canWrite', function (validator, context, app_) {
+            let tx = this.toJSON();
+            if (!tx.datascript)
+                return true;
+
+            let dbname = this.preparedDS.dbname;
+            let pubkey = this.preparedDS.writer_key;
+            let list = dsTools.getDatascriptList(dbname, false, true);
+            let datascripts = this.preparedDS.data;
+
+
+            let res = [];
+            for (let datasetname in datascripts) {
+                let ds = datascripts[datasetname];
+                let lastsett = dsTools.getLastSettings(ds, datasetname, list);
+
+
+                if (!lastsett) {
+                    return validator.addError("datascript.lastsettings (settings or create script) found: false", 'ds_settings_not_found');
+                    res.push(0);
+                    continue;
+                }
+
+                if (!lastsett.content) {
+                    return validator.addError("datascript.lastsettings.content not empty: false", 'ds_settings_empty');
+                    res.push(0);
+                    continue;
+                }
+
+                if (!lastsett.content.writeScript) {
+                    res.push(1);
+                    continue;
+                }
+
+                if ((lastsett.content.writeScript == '5560' || lastsett.content.writeScript == 5560)) {
+                    if ((lastsett.content.privileges.indexOf(pubkey) >= 0 || lastsett.content.owner_key == pubkey)) {
+                        res.push(1);
+                        continue;
+                    } else {
+                        return validator.addError("datascript.writeScript rule x55 x60 - can write only owner success: false", 'ds_canwrite_onlyowner');
+                        res.push(0);
+                        continue;
+                    }
+                } else if (!lastsett.content.writeScript)
+                    res.push(1);
+            }
+
+
+
+            let sum = 0;
+            for (let i in res) {
+                sum += res[i];
+            }
+
+            return sum == res.length
+
+        });
+
+
+        chain.TX.VALIDATOR.addRule('canEdit', function (validator, context, app_) {
+            let tx = this.toJSON();
+            if (!tx.datascript)
+                return true;
+
+            let dbname = this.preparedDS.dbname;
+            let pubkey = this.preparedDS.writer_key;
+            let list = dsTools.getDatascriptList(dbname, false, true);
+            let datascripts = this.preparedDS.data;
+
+            //if entry is exist in db, and send this entry with similar oid - check, 
+            //that previously sender send data (or owner|have privileges). And for writeScript = '' TOO!
+            let res = [];
+
+            for (let datasetname in datascripts) {
+                let ds = datascripts[datasetname];
+                let lastsett = dsTools.getLastSettings(ds, datasetname, list);
+
+                if (!lastsett) {
+                    return validator.addError("dataset[" + datasetname + "] found dataset_settings: false", 'ds_settings_not_found');
+                    res.push(0)
+                    continue;
+                }
+
+                if (!list[datasetname] || !list[datasetname].length)
+                    continue;//no have history, havent edit yet
+
+                for (let i in ds) {
+                    let writers = [];
+                    if (ds[i].operator == 'write' && ds[i].content) {//only with public datascript. Private datascripts dont check with this rule.
+                        for (let k in list[datasetname]) {
+                            let history = list[datasetname][k];
+                            if (history.operator != 'write')
+                                continue;
+
+                            if (history.content && history.content.oid == ds[i].content.oid && history.writer) {
+                                writers.push(history.writer)
+                            }
+                        }
+
+                        if (writers.length > 0) {
+                            //check owner or previous writer
+                            if (writers.indexOf(pubkey) >= 0 || lastsett.content.privileges.indexOf(pubkey) >= 0 || lastsett.content.owner_key == pubkey)
+                                res.push(1);
+                            else {
+                                res.push(0);
+                                return validator.addError("datascript[" + i + "] edit can only owner, or privileged keys or previous writer: false", 'ds_canedit_access');
+                            }
+                        }
+                    }
+                }
+
+
+            }
+
+            let sum = 0;
+            for (let i in res) {
+                sum += res[i];
+            }
+
+            return sum == res.length
+        });
+
+        chain.TX.VALIDATOR.addRule('dsopfee', function (validator, context, app_) {
+            let tx = this.toJSON();
+            if (!tx.datascript)
+                return true;
+
+
+            let dbname = this.preparedDS.dbname;
+            let list = dsTools.getDatascriptList(dbname, false, true);
+            let res = dsTools.checkfee(this.preparedDS.data, new Buffer(this.toHex(), 'hex').length, tx);
+            if (!res)
+                return validator.addError("datascript opfee valid: false", 'ds_fee_invalid');
+
+            return res;
+        });
+
+        //domains
+        chain.TX.VALIDATOR.addRule('domains', function (validator, context, app_) {
+            let tx = this.toJSON();
+            if (!tx.datascript)
+                return true;
+
+
+            let dbname = this.preparedDS.dbname;
+            let pubkey = this.preparedDS.writer_key;
+            let list = dsTools.getDatascriptList(dbname, false, true);
+            let datascripts = this.preparedDS.data;
+
+            let res = [];
+            if (dbname == chain.getSystemDb()) {//special rule for this db/domain
+
+                for (let datasetname in datascripts) {
+                    if (datasetname == 'domain') {
+
+                        let ds = datascripts[datasetname];
+                        for (let k in ds) {
+
+                            if (ds[k].operator == 'write' && ds[k].content) {
+                                let content = ds[k].content;
+                                //now we in db system/domain and ds[k].content is try to write in this db
+                                //we need, that format of entry will be valid {oid: 'somehex', domain: 'something regexp', address: 'validaddress'}
+                                //and if address with this entry already have - check that previous writer change it.
+                                if (!content.domain || !content.address) {
+                                    res.push(0);
+                                    return validator.addError("datascript[" + k + "] valid domain entry format: false", 'domain/domainformatinvalid');
+                                    continue;
+                                }
+
+                                if (!chain.ADDRESS.isValidAddress(content.address)) {
+                                    res.push(0);
+                                    return validator.addError("datascript[" + k + "] valid address format: false", 'domain/addressformatinvalid');
+                                    continue;
+                                }
+
+                                if (!chain.ADDRESS.isValidDomain(content.domain)) {
+                                    res.push(0);
+                                    return validator.addError("datascript[" + k + "] valid domain format: false", 'domain/domainformatinvalid');
+                                    continue;
+                                }
+
+                                if (!dsTools.checkDomainHistory(pubkey, content)) {
+                                    res.push(0);
+                                    return validator.addError("datascript[" + k + "] can edit domain: false", 'domain/canteditdomain');
+                                    continue;
+                                }
+
+                                let addrdomain = chain.dsIndex.get("domain/" + content.domain);
+                                let domainaddr = chain.dsIndex.get("domain/address/" + content.address);
+                                if (addrdomain && addrdomain != content.address) {
+                                    res.push(0);
+                                    return validator.addError("datascript[" + k + "] address already have domain: false", 'domainaddress/alreadyexist');
+                                }
+
+                                if (domainaddr && domainaddr != content.domain) {
+                                    res.push(0);
+                                    return validator.addError("datascript[" + k + "] domain already have address: false", 'addressdomain/alreadyexist');
+                                }
+
+
+                            }
+
+                        }
+
+
+
+                    }
+
+                }
+
+            }
+
+            let sum = 0;
+            for (let i in res) {
+                sum += res[i];
+            }
+
+            return sum == res.length
+
+        });
+
+        //tokens
+        chain.TX.VALIDATOR.addRule('addtokens', function (validator, context, app_) {
+            let tx = this.toJSON();
+            if (!tx.datascript)
+                return true;
+
+
+            let dbname = this.preparedDS.dbname;
+            let pubkey = this.preparedDS.writer_key;
+            let list = dsTools.getDatascriptList(dbname, false, true);
+            let datascripts = this.preparedDS.data;
+
+            let res = [];
+            if (dbname == chain.getSystemDb()) {//special rule for this db/domain
+
+                for (let datasetname in datascripts) {
+                    if (datasetname == 'tokens') {
+
+                        let ds = datascripts[datasetname];
+                        for (let k in ds) {
+
+                            if (ds[k].operator == 'write' && ds[k].content) {
+                                let content = ds[k].content;
+                                //now we in db system/token and ds[k].content is try to write in this db
+                                //we need, that format of entry will be valid {oid: 'somehex', ticker: 'uniq token id', title: 'token name', emission: 'count of tokens', mainAddress: 'address of token db', mainHolder: 'pubkey of main holder', isStock: 'true or false'}
+                                //and if address with this entry already have - check that previous writer change it.
+                                if (!content.ticker || !content.title) {
+                                    res.push(0);
+                                    return validator.addError("datascript[" + k + "] valid token entry format: false", 'token/tokenformatinvalid');
+                                }
+
+                                if (!chain.ADDRESS.isValidDomain(content.ticker) || content.ticker.length < 2 || content.ticker > 64) {
+                                    res.push(0);
+                                    return validator.addError("datascript[" + k + "] valid ticker entry format: false", 'token/tickerformatinvalid');
+                                }
+
+                                if (!chain.ADDRESS.isValidAddress(content.mainAddress)) {
+                                    res.push(0);
+                                    return validator.addError("datascript[" + k + "] valid address format: false", 'domain/mainaddressformatinvalid');
+                                }
+
+                                if (content.emission <= 0) {
+                                    res.push(0);
+                                    return validator.addError("datascript[" + k + "] valid token emission format: false", 'token/emission');
+                                }
+
+                                if (!dsTools.checkTokenHistory(pubkey, content)) {
+                                    res.push(0);
+                                    return validator.addError("datascript[" + k + "] can edit token: false", 'token/cantedittoken');
+                                }
+
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+            let sum = 0;
+            for (let i in res) {
+                sum += res[i];
+            }
+
+            return sum == res.length
+
+        });
+
+        chain.TX.VALIDATOR.addRule('tokens', function (validator, context, app_) {
+            let tx = this.toJSON();
+            if (!tx.datascript)
+                return true;
+
+
+            let dbname = this.preparedDS.dbname;
+            let pubkey = this.preparedDS.writer_key;
+            let list = dsTools.getDatascriptList(dbname, false, true);
+            let datascripts = this.preparedDS.data;
+
+            let tokenSett = dsTools.getTokenSettings(dbname);
+            if (!tokenSett)//is not token
+                return true;
+
+            for (let datasetname in datascripts) {
+                if (datasetname == 'token') {
+
+                    let ds = datascripts[datasetname];
+                    for (let k in ds) {
+
+                        if (ds[k].operator == 'write' && ds[k].content) {
+                            let content = ds[k].content;
+
+                            if (!content.to || !chain.ADDRESS.isValidAddress(content.to)) {
+                                res.push(0);
+                                return validator.addError("datascript[" + k + "] token message valid: false", 'token/messageinvalid');
+                            }
+
+                            if (!content.from || !chain.ADDRESS.isValidAddress(content.from)) {
+                                res.push(0);
+                                return validator.addError("datascript[" + k + "] token message valid: false", 'token/messageinvalid');
+                            }
+
+                            if (content.amount <= 0 || content.amount > settings.emission) {
+                                res.push(0);
+                                return validator.addError("datascript[" + k + "] token message valid: false", 'token/messageinvalid');
+                            }
+
+                            //check token balance on account writer
+                            let balance = chain.getTokenAmount(dbname, pubkey);
+                            if (content.from == chain.ADDRESS.generateAddressFromPublicKey(pubkey) && balance <= 0) {
+                                res.push(0);
+                                return validator.addError("datascript[" + k + "] token balance valid: false", 'token/balance');
+                            }
+
+                            let lastsett = dsTools.getLastSettings(ds, datasetname, list);
+                            if (content.from == content.to && lastsett.owner_key != pubkey //its seems like a initial pay, writer is owner
+                                && content.to != chain.ADDRESS.generateAddressFromAddrHash(dbname) //writer is owner
+                                && !chain.getTokenAmount(dbaddress, pubkey)) {//no have balance for writer
+                                res.push(0);
+                                return validator.addError("datascript[" + k + "] from can not be equal to", 'token/fromto');
+                            }
+
+                            //not have token for this address
+                            //available ticker
+
+                            return true;
+                        }
+                    }
+                }
+            }
+
+        });
+        //stock
+        //masternodes
     }
 
     function blocks() {
@@ -276,14 +1013,14 @@ module.exports = function (app, chain) {
         chain.BLOCK.VALIDATOR.addRule('syntax', function (validator, context, app_) {
             let block = this;
 
-            let hex = block.toHEX();
-            let b = chain.BLOCK.fromHEX(app, hex);
+            let hex = block.toHex();
+            let b = chain.BLOCK.fromHEX(hex);
 
             if (b.getHash('raw').toString('hex') == b.getHash()) {//generated hash from hex == old hash from checking tx - valid
                 return true;
             }
 
-            app.throwError("Block syntax is invalid", 'block_syntax_invalid');
+            return validator.addError("Block syntax is invalid", 'block_syntax_invalid');
         });
         //2. Reject if duplicate of block we have in any of the three categories
         chain.BLOCK.VALIDATOR.addRule('duplicate', function (validator, context, app_) {
@@ -293,7 +1030,7 @@ module.exports = function (app, chain) {
                 try {
                     let b = chain.getBlock(block.getHash());
                     if (b.getHash() == block.getHash())
-                        app.throwError("Block already exist", 'block_duplicate');
+                        return validator.addError("Block already exist", 'block_duplicate');
                 } catch (e) {
 
                 }
@@ -307,7 +1044,7 @@ module.exports = function (app, chain) {
             let block = this;
 
             if (block.vtx.length < 1)
-                app.throwError("Block txlist empty", 'block_txlist_empty');
+                return validator.addError("Block txlist empty", 'block_txlist_empty');
 
             return true;
         });
@@ -315,8 +1052,8 @@ module.exports = function (app, chain) {
         chain.BLOCK.VALIDATOR.addRule('hashvalid', function (validator, context, app_) {
             let block = this;
 
-            if (!app.pow.checkHash(block.getHash(), block.bits)) {
-                app.throwError("Block hash invalid", 'block_hash_invalid');
+            if (!app.orwell.checkHash(this.app.tools.reverseBuffer(block.getHash('raw')), block.bits)) {
+                return validator.addError("Block hash invalid", 'block_hash_invalid');
             }
 
             return true;
@@ -326,7 +1063,12 @@ module.exports = function (app, chain) {
             let block = this;
 
             if (block.time >= (Date.now() / 1000 + 2 * 60 * 60)) {
-                app.throwError("Block time invalid or system time is wrong", 'block_time_invalid');
+                return validator.addError("Block time invalid or system time is wrong", 'block_time_invalid');
+            }
+
+            let prevblock = app.orwell.getBlock(block.prev || block.hashPrevBlock);
+            if (block.time < prevblock.time) {
+                return validator.addError("Block time invalid, prevtime > block.time", 'block_time_prevblock_invalid');
             }
 
             return true;
@@ -337,7 +1079,7 @@ module.exports = function (app, chain) {
 
             let ctx = block.vtx[0].toJSON();
             if (!ctx.coinbase)
-                app.throwError("Block coinbase transaction missing", 'block_coinbase_invalid');
+                return validator.addError("Block coinbase transaction missing", 'block_coinbase_invalid');
 
             return true;
         });
@@ -351,7 +1093,7 @@ module.exports = function (app, chain) {
                 //verify tx, set res=false is tx is invalid
                 if (!tx.isValid()) {
                     res = false;
-                    app.throwError("Tx #" + i + " in block is invalid", 'block_tx_invalid');
+                    return validator.addError("Tx #" + i + " in block is invalid", 'block_tx_invalid');
                 }
 
             }
@@ -361,57 +1103,64 @@ module.exports = function (app, chain) {
 
         //16.2 Reject if coinbase value > sum of block creation fee and transaction fees
         //8. For the coinbase (first) transaction, scriptSig length must be 2-100
+        //8. Remark: for the coinbase transaction scriptSig is sig, but datascript is coinbaseBytes. Check coinbaseBytes:
+        //var_str(author of block), var_str (sofrware,hardware), uint32(time), var_int(vector count), vector_uint8(signal bytes)
         chain.BLOCK.VALIDATOR.addRule('block_coinbase_sig', function (validator, context, app_) {
             let block = this;
 
             let res = true;
             let coinbase = block.vtx[0];
-            if (coinbase.in[0].scriptSig.length > 200)
-                app.throwError("Coinbase tx.in.scriptsig is overlength", 'block_coinbase_invalid');
+            //if (coinbase.in[0].scriptSig.length > 200)
+            //    return validator.addError("Coinbase tx.in.scriptsig is overlength", 'block_coinbase_invalid');
 
             let fullfee = 0, amount = 0;
             for (let i in block.vtx) {
 
-                let tx = block.vtx[i];
+                let tx = block.vtx[i].toJSON();
                 let sum_in = 0;
                 let sum_out = 0;
 
-                let ins = tx.getInputs();
+                let ins = tx.in;
                 for (let k in ins) {
-                    let prev = app.btcchain.getOut(ins[k].hash, ins[k].index);
+                    if (k == 0 && tx.coinbase)
+                        continue;
+
+                    let prev = app.orwell.getOut(ins[k].hash, ins[k].index);
                     if (!prev)
-                        app.throwError('Tx prev out is not exist', 'tx_prevout_missing');
+                        return validator.addError('Tx prev out is not exist', 'tx_prevout_missing');
 
                     sum_in += prev.amount;
                 }
 
-                let outs = tx.getOutputs();
+                let outs = tx.out;
                 for (let k in outs) {
                     sum_out += outs[k].amount;
                 }
 
-                if (sum_in < sum_out)
-                    app.throwError('Tx sum input and output range is invalid', 'tx_fee_invalid');
+                if (sum_in < sum_out && !tx.coinbase)
+                    return validator.addError('Tx sum input and output range is invalid', 'tx_fee_invalid');
 
                 let fee = sum_in - sum_out;
-                let t = app.btcchain.TX.fromJSON(app, tx);
-                let size = t.getSize();
+                //let t = tx;
+                let size = tx.size;
 
                 let cost = fee / size;
-                if (cost < app.cnf("consensus").minfeeperbyte) {
-                    app.throwError('Fee is less then min value', 'tx_fee_less_min');
+                if (cost < app.cnf("consensus").minfeeperbyte && !tx.coinbase) {
+                    return validator.addError('Fee is less then min value1', 'tx_fee_less_min');
                 }
 
-                fullfee += fee;
+                if (!tx.coinbase)
+                    fullfee += fee;
 
             }
 
-            for (let i in block.vtx[0].out) {
-                amount += block.vtx[0].out[i].amount;
+            let cbs = coinbase.toJSON();
+            for (let i in cbs.out) {
+                amount += cbs.out[i].amount;
             }
 
-            if (amount < app.pow.getBlockValue(fullfee, context.height)) {
-                app.throwError("Coinbase amount is less then minimum blockValue for height" + context.height, 'block_coinbase_amount_invalid');
+            if (amount < app.orwell.getBlockValue(fullfee, (context.height || block.height))) {
+                return validator.addError("Coinbase amount is less then minimum blockValue for height: " + (context.height || block.height), 'block_coinbase_amount_invalid');
             }
 
             return res;
@@ -436,7 +1185,10 @@ module.exports = function (app, chain) {
             let block = this;
             let prev = null;
 
-            if (block.hash == chain.GENESIS.header.hash && block.hashPrevBlock == '0000000000000000000000000000000000000000000000000000000000000000')
+            if (app.cnf('consensus').genesisMode)
+                return true;
+
+            if (block.hash == chain.GENESIS.hash && block.hashPrevBlock == '0000000000000000000000000000000000000000000000000000000000000000')
                 return true;
 
             try {
@@ -445,32 +1197,19 @@ module.exports = function (app, chain) {
 
             }
 
-            if (prev && prev.hash) {
-                let childs = chain.getChilds(hashPrevBlock);
-                if (block.hash && (childs.length == 0 || (childs.length == 1 && childs[0].hash == validator.block.hash)))
-                    return true;
-
-                //orphan
-                chain.orphan.add(block.toJSON());
-                //if (newAdding && (childs.length == 0 || (childs.length == 1 && childs[0].hash == validator.block.hash)))
-                app.emit("chain.block.seek", { hash: block.hashPrevBlock });
-
-                if (childs.length != 0 && childs[0].hash != block.hash) {
-                    chain.orphan.tryLongest(block.hash);
-                }
-
-                return false;
-            } else {
-                app.throwError("Prev block is not exist in any pool", 'block_prev_missing');
-            }
+            //consensusjs must handle this before
+            if (prev && prev.hash)
+                return true;
+            else
+                return validator.addError("Prev block is not exist in any pool", 'block_prev_missing');
 
         });
         //12. Check that nBits value matches the difficulty rules
         chain.BLOCK.VALIDATOR.addRule('bitsvalid', function (validator, context, app_) {
             let block = this;
 
-            if (chain.getDiffForHeight(block.height || context.height) != block.bits) {
-                app.throwError("Block bits invalid", 'block_bits_invalid');
+            if (block.bits < chain.getDiffForHeight(block.height || context.height)) {
+                return validator.addError("Block bits invalid", 'block_bits_invalid');
             }
 
             return true;
@@ -479,8 +1218,11 @@ module.exports = function (app, chain) {
         chain.BLOCK.VALIDATOR.addRule('mediantimevalid', function (validator, context, app_) {
             let block = this;
 
-            if (block.time > chain.getTimeForHeight(block.height || context.height)) {
-                app.throwError("Block bits invalid", 'block_bits_invalid');
+            if (app.cnf('consensus').genesisMode)
+                return true;
+
+            if (block.time <= chain.getTimeForHeight(block.height - 1)) {
+                return validator.addError("Block time invalid", 'block_time_invalid');
             }
 
             return true;
@@ -489,8 +1231,8 @@ module.exports = function (app, chain) {
         chain.BLOCK.VALIDATOR.addRule('checkpoint', function (validator, context, app_) {
             let block = this;
 
-            if (chain.checkpoint[context.height] != block.hash) {
-                app.throwError("Block is not equal for checkpoint on height: " + context.height, 'checkpoint_invalid');
+            if (chain.checkpoint[context.height || block.height] && chain.checkpoint[context.height || block.height] != block.hash) {
+                return validator.addError("Block is not equal for checkpoint on height: " + (context.height || block.height), 'checkpoint_invalid');
             }
 
             return true;

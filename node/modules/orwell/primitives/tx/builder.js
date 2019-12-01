@@ -27,6 +27,7 @@ module.exports = function (app) {
             this.coinbaseAmount = 0;
         }
         setInputs(arr, addresses) {
+
             if (!addresses)
                 addresses = [];
             for (let i in arr) {
@@ -35,12 +36,13 @@ module.exports = function (app) {
 
                 if (arr[i].scriptSig) {
                     this.signatures[i] = arr[i].scriptSig;
-                    this.scriptSigRaw[i] = app.SCRIPT.sigToArray(arr[i].scriptSig);
+                    this.scriptSigRaw[i] = app.orwell.SCRIPT.sigToArray(arr[i].scriptSig);
                 }
 
                 if (arr[i].sig) {
                     this.signatures[i] = arr[i].sig;
-                    this.scriptSigRaw[i] = app.SCRIPT.sigToArray(arr[i].sig);
+                    let p = app.orwell.SCRIPT.sigToArray(arr[i].sig);
+                    this.scriptSigRaw[i] = [p.der, p.publicKey];
                 }
 
                 if (!arr[i].prevAddress && this.scriptSigRaw[i]) {
@@ -89,6 +91,7 @@ module.exports = function (app) {
 
                 this.outputs[i] = arr[i];
             }
+            
             return this;
         }
         setVersion(ver) {
@@ -97,6 +100,10 @@ module.exports = function (app) {
         }
         setLockTime(lock) {
             this.lock_time = lock;
+            return this;
+        }
+        setSigned(signed_hex) {
+            this.signed = signed_hex;
             return this;
         }
         setCoinbase(inp, out) {
@@ -194,17 +201,24 @@ module.exports = function (app) {
             write.uint32(this.lock_time, true);
 
             let dsc = "";
-            if (this.datascripts instanceof Array && this.datascripts.length > 0) {
-                let scriptslist = [];
-                for (let i in this.datascripts) {
-                    if (this.datascripts[i] instanceof dscript)
-                        scriptslist.push(this.datascripts[i].toHEX());
-                }
-                dsc = dscript.writeArray(scriptslist);
-            } else
-                dsc = this.datascripts;
-            this[this.gensigned ? 'signed' : 'rawunsigned'] = write.getBuffer().toString('hex') + dsc;
+            if (!this.inputs[0].hash && this.inputs[0].index == 0xffffffff && this.inputs[0].coinbase) {
+                //attach coinbase Bytes as datascript
+                dsc = "cbae" + new Buffer(this.inputs[0].coinbase, 'hex').toString('hex');
+            } else {
+                if (this.datascripts instanceof Array && this.datascripts.length > 0) {
+                    let scriptslist = [];
+                    for (let i in this.datascripts) {
+                        if (this.datascripts[i] instanceof dscript)
+                            scriptslist.push(this.datascripts[i].toHEX());
+                        else
+                            scriptslist.push(this.datascripts[i]);
+                    }
+                    dsc = dscript.writeArray(scriptslist);
+                } else
+                    dsc = this.datascripts;
+            }
 
+            this[this.gensigned ? 'signed' : 'rawunsigned'] = write.getBuffer().toString('hex') + "" + dsc;
         }
         sign(private_keys) {
             let siglist = [];
@@ -275,12 +289,15 @@ module.exports = function (app) {
             let read = new bitPony.reader(b);
             let res = read.tx(0);
             let tx = res.result;
+            let coinbaseInfo = "";
 
             if (b[res.offset] == 0xef || b[res.offset] == 0xee) {
                 let scripts = dscript.readArray(b.slice(res.offset));
                 for (let i in scripts) {
                     datascripts[i] = new dscript(scripts[i]);
                 }
+            } else if (b[res.offset] == 0xcb && b[res.offset + 1] == 0xae) {//coinbase info
+                coinbaseInfo = "cbae" + b.slice(res.offset + 2).toString('hex');
             }
 
             let write = new bitPony.writer(new Buffer(""));
@@ -304,7 +321,7 @@ module.exports = function (app) {
 
             for (let o in tx.out) {
                 let s = tx.out[o],
-                    sigo = s.scriptPubKey,
+                    sigo = s.scriptPubKey || s.script,
                     amount = s.amount;
                 write.tx_out(amount, sigo, true);
             }
@@ -317,8 +334,12 @@ module.exports = function (app) {
                 for (let i in datascripts) {
                     if (datascripts[i] instanceof dscript)
                         arr.push(datascripts[i].toHEX());
+                    else
+                        arr.push(datascripts[i]);
                 }
                 dsc = dscript.writeArray(arr);
+            } else if (coinbaseInfo) {
+                dsc = coinbaseInfo;
             }
 
             return write.getBuffer().toString('hex') + dsc;

@@ -1,7 +1,7 @@
 module.exports = (app) => {
     class UTXO extends app.storage.Index {
         constructor() {
-            super(app, 'utxo');
+            super(app, 'utxo', false);
             this.init();
         }
         getList() {
@@ -35,7 +35,7 @@ module.exports = (app) => {
 
                 let prevout;
                 try {
-                    prevout = app.btcchain.getOut(inpt.hash, inpt.index);
+                    prevout = app.orwell.getOut(inpt.hash, inpt.index);
                     this.removeOutIndex(tx.hash, prevout.addr, inpt.hash, inpt.index);
                 } catch (e) {
                     //search in mempool
@@ -158,6 +158,8 @@ module.exports = (app) => {
             if (!addrind || !(addrind instanceof Array))
                 addrind = [];
 
+            addrind.reverse();
+
             let spent = 0, unspent = 0, spent_in = 0, unspent_in = 0;
 
             for (let i in addrind) {
@@ -214,6 +216,28 @@ module.exports = (app) => {
             return dump;
         }
 
+        checkAndUnlock(address) {
+            let addrind = this.get("address/" + address);
+            if (!addrind || !(addrind instanceof Array))
+                addrind = [];
+
+            for (let i in addrind) {
+                if (addrind[i].spent || addrind[i].spentHash || addrind[i].locked) {
+                    if (!this.app.orwell.mempool.have(addrind[i].spentHash)) {
+                        try {
+                            this.app.orwell.getTx(addrind[i].spentHash)
+                        } catch (e) {
+                            delete addrind[i].spentHash;
+                            delete addrind[i].locked;
+                            delete addrind[i].spent;
+                        }
+                    }
+                }
+            }
+
+            this.set("address/" + address, addrind);
+            return addrind;
+        }
 
     }
 

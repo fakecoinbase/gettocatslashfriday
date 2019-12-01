@@ -11,37 +11,39 @@ module.exports = function (app) {
             return $(cnf);
         }
         getConfig() {
-            if (!db.cache[this.dbname]) {
-                let cnf = this.app.cnf('orwelldb');
-                cnf.name = this.dbname;
-                cnf.public_key = this.pk;
-                cnf.path = cnf.path.replace("%home%", this.app.config.getLocalHomePath())
-                this.app.config.initDir(cnf.path);
-                db.cache[this.dbname] = cnf;
+            return this.getConfigParams(this.dbname);
+        }
+        static getConfigParams(dbname, pk) {
+            if (!db.cache[dbname]) {
+                let cnf = app.cnf('orwelldb');
+                cnf.name = dbname;
+                cnf.public_key = pk;
+                cnf.path = cnf.path.replace("%home%", app.config.getLocalHomePath())
+                app.config.initDir(cnf.path);
+                db.cache[dbname] = cnf;
             }
 
-            return db.cache[this.dbname];
+            return db.cache[dbname];
         }
         static import(databasename, public_key, hex) {
-            let cnf = new db(databasename, public_key).getConfig();
+            let cnf = db.getConfigParams(databasename, public_key);
             return orwell.import(cnf, hex);
         }
         static export(databasename, public_key, cb) {
-            let cnf = new db(databasename, public_key).getConfig();
+            let cnf = db.getConfigParams(databasename, public_key);
             return orwell.export(cnf, cb);
         }
         static syncdb(dbname) {
 
             return new Promise((resolve, reject) => {
 
-                let arr = this.app.orwell.getDatascriptList(dbname, true);
-
+                let arr = app.orwell.getDatascriptList(dbname, true);
                 let done = () => {
                     resolve();
                 }
 
                 let next = (index, a) => {
-                    if (!a[index] && a.length >= index)
+                    if (!a[index] && index >= a.length)
                         return done();
 
                     this.import(dbname, a[index].writer, a[index].ds)

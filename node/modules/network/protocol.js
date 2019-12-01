@@ -33,25 +33,25 @@ protocol.prototype = {
     },
     readMessage: function (buff) {
 
-        let package = {}, data = null
+        let package1 = {}, data = null
         let reader = new bitPony.reader(buff);
         let res = reader.string(0);
-        package.command = res.result.toString('utf8');
+        package1.command = res.result.toString('utf8');
         res = reader.hash(res.offset);
-        package.checksum = res.result;
+        package1.checksum = res.result;
         res = reader.string(res.offset);
-        package.payload = res.result;
-        data = bitOwl.data.unpack(package.payload);
+        package1.payload = res.result;
+        data = bitOwl.data.unpack(package1.payload);
 
-        let myhash = this.app.crypto.sha256(this.app.crypto.sha256(package.command + package.payload.toString('hex'))).toString('hex');
-        if (myhash != package.checksum) {
+        let myhash = this.app.crypto.sha256(this.app.crypto.sha256(package1.command + package1.payload.toString('hex'))).toString('hex');
+        if (myhash != package1.checksum) {
             //not full message, wait another chunks
             if (this.app.cnf('debug').protocol)
-                this.app.debug('error', 'network', "!! cant read message, hash is not valid or size of message is not equals, size (" + package.checksum + "," + myhash + ")")
+                this.app.debug('error', 'network', "!! cant read message, hash is not valid or size of message is not equals, size (" + package1.checksum + "," + myhash + ")")
         }
 
         return [
-            package.command,
+            package1.command,
             data || {}
         ]
     },
@@ -66,28 +66,7 @@ protocol.prototype = {
         }
     },
     initNode: function (addr, afterInit) {
-        this.app.emit("net.node.add", addr, (rinfo) => {
-
-            this.app.on("net.node.init" + this.getAddressUniq(rinfo), () => {
-                this.app.removeAllListeners("net.node.init" + this.getAddressUniq(rinfo));
-                if (afterInit instanceof Function)
-                    afterInit(rinfo);
-            });
-
-
-            let d = this.nodes.get("data/" + this.getAddressUniq(rinfo));
-            this.app.once("net.node.connected" + this.getAddressUniq(rinfo), () => {
-                d.initiator = 1;
-                this.nodes.set("data/" + this.getAddressUniq(rinfo), d);
-                this.sendOne(rinfo, 'version', {
-                    version: this.app.cnf('consensus').version || 0,
-                    lastblock: this.app.orwell.index.getTop(),
-                    agent: this.getUserAgent(),
-                    nodekey: this.getNodeKey(),
-                    timezone: 0//offset UTC
-                }, true)
-            });
-        });
+        this.app.emit("net.node.add", addr);
 
     },
     getNodeList: function () {
@@ -105,25 +84,6 @@ protocol.prototype = {
 
         return list;
     },
-    checkNodes: function () {
-
-        let list = this.getNodeList();
-        for (let i in list) {
-
-            let socket = this.nodes.get("connection/" + list[i]);
-            if (this.app.cnf('debug').network)
-                this.app.debug('info', 'network', "check peer " + list[i] + " OK: ", !(!socket || socket.destroyed === true));
-
-            if (!socket || socket.destroyed === true) {
-                if (this.app.cnf('debug').network)
-                    this.app.debug('notice', 'network', "remove peer " + list[i])
-                this.app.emit("net.connection.remove", list[i]);
-            }
-
-
-        }
-
-    },
     getNodeKey: function () {
         if (!this.app.cnf('node').publicKey) {
             if (this.app.cnf('debug').network)
@@ -134,6 +94,7 @@ protocol.prototype = {
     },
     handleMessage: function (data, rinfo, self) {
 
+        //console.log('decrypt', data, rinfo);
         let decrypted = this.app.network.decryptMessage(data.payload, this.getAddressUniq(rinfo), data.encFlag);
         let a = this.readMessage(decrypted);
         if (a) {
@@ -209,7 +170,7 @@ protocol.prototype = {
 
             if (!socket || socket.destroyed === true) {
                 if (this.app.cnf('debug').peers)
-                    this.app.debug('info', 'network', "remove peer " + list[i])
+                    this.app.debug('info', 'network', "remove peer " + list[i], !!socket, socket.destroyed !== true)
                 this.app.emit("net.connection.remove", list[i]);
 
                 if (!list[i])
@@ -228,7 +189,14 @@ protocol.prototype = {
 
     },
     getAddressUniq: function (rinfo) {
-        return rinfo.remoteAddress.replace("::ffff:", "") + "/" + rinfo.remotePort + "/" + rinfo.port
+        if (rinfo.remoteAddress == '127.0.0.1')
+            return rinfo.remoteAddress.replace("::ffff:", "") + "/" + rinfo.port + "/" + rinfo.remotePort
+
+        if (rinfo.port == this.port()) {
+            return rinfo.remoteAddress.replace("::ffff:", "") + "/" + rinfo.remotePort + "/" + rinfo.port
+        } else {
+            return rinfo.remoteAddress.replace("::ffff:", "") + "/" + rinfo.port + "/" + rinfo.remotePort
+        }
     },
     getUniqAddress: function (key) {
         if (!key)

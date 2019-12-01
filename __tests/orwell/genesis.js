@@ -1,6 +1,12 @@
 const DAPP = require("../../index");
+const config = require('../../config.orwell.json');
 
-let app = new DAPP(require('../../config.orwell.json'));
+if (!config[config.network].consensus.genesisMode) {
+    console.log("genesis mode must be enabled!")
+    process.exit(-1);
+}
+
+let app = new DAPP(config);
 
 process.on('uncaughtException', function (err) {
     console.log('UNCAUGHT EXCEPTION:', err);
@@ -10,47 +16,33 @@ app.on("app.debug", function (data) {
     console.log("[" + new Date().toLocaleTimeString() + "]", "< " + data.level + " >", data.module, data.text);
 });
 
-app.init()
+app.on("app.mining.stop", (event) => {
+    if (event.type != 'finished')
+        return;
 
+    let block = app.orwell.BLOCK.fromJSON(event.data);
+    app.orwell.addBlockFromNetwork(null, block)
+        .then((data) => {
+
+            console.log('completed, put next lines into config of your network:\n');
+            console.log('### NEW GENESIS ###\n');
+            let b = data;
+            console.log(JSON.stringify(b));
+            console.log("### NEW GENESIS ###");
+            process.exit(0);
+
+        });
+})
 
 app.on('init', () => {
     console.log('inited');
-    console.log('node is not running. Please, run app (genesis.js) with consensus.genesisMode = 1, and start mining pool and miner');
-    //process.exit(0);
+    let ks = app.wallet.getAccount('node');
+    app.orwellminer.start(ks);
+});
 
-    //create new first block
-    let cb = app.orwell.TX.createCoinbase([app.cnf('node').privateKey]);
-
-    let block = new app.orwell.BLOCK({
-        version: app.cnf("consensus").version,
-        hashPrevBlock: '0000000000000000000000000000000000000000000000000000000000000000',
-        time: parseInt(Date.now() / 1000),
-        bits: app.orwell.getActualDiff(),
-        nonce: 0
-    }, [cb]);
-
-    app.pow.setOnIteration((nonce) => {
-        if (nonce % 100000 == 0)
-            console.log('nonce >:', nonce);
-        block.nonce = nonce;
-
-        return {
-            buffer: (block.hashBytes()),
-            difficulty: block.bits
-        };
-    })
-
-    console.log("start search:");
-    app.pow.startDig((nonce) => {
-        block.nonce = nonce;
-        //block.hash = block.getHash();
-        console.log('completed, put next lines into config of your network:\n');
-        console.log('### NEW GENESIS ###\n');
-        let b = block.toJSON();
-        console.log(JSON.stringify(b));
-        console.log("### NEW GENESIS ###");
-        process.exit(0);
-    });
-
-
-})
+app.noConflict((stage) => {//stage can be beforeload (additional modules is not loaded yet) and beforeinit (additional modules is loaded but not inited)
+    if (stage == 'beforeload') {
+        app.config.arg[app.config.arg.network].rpc.useServer = false;
+    }
+});
+app.init();

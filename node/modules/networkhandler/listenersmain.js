@@ -5,13 +5,13 @@ module.exports = function (app) {
         let key = "data/" + app.network.protocol.getAddressUniq(connectionInfo);
         let d = app.network.nodes.get(key);
 
-        if (d && d.ackSended){
+        if (d && d.ackSended) {
             return false;
         }
 
         d.startPing = Date.now();
         app.network.nodes.set(key, {
-            key: message.nodekey,
+            nodekey: message.nodekey,
             initiator: d.initiator,
             rinfo: connectionInfo,
             top: message.lastblock || { number: 0 },
@@ -228,13 +228,17 @@ module.exports = function (app) {
         if (selfMessage)
             return false;
 
-        if (app.getSyncState() != 'active')
+        if (app.getSyncState() != 'active') {
+            app.debug("info", "getdata", "inactive state " + app.getSyncState() + ", not send blocks ")
             return;
+        }
 
         if (message.type == 'blocks') {
 
-            if (app.network.nodes.getState(connectionInfo) == 'syncing')
+            if (app.network.nodes.getState(connectionInfo) == 'syncing') {
+                app.debug("info", "getdata", "inactive node state " + app.network.nodes.getState(connectionInfo) + ", not send blocks ")
                 return;
+            }
 
             let top = app.orwell.index.getTop();
 
@@ -264,27 +268,42 @@ module.exports = function (app) {
                 return;//nothing todo here
 
             app.network.nodes.setState(connectionInfo, 'syncing');
-            let list = app.orwell.getBlockList(last, first);
+            let list = app.orwell.getBlockList(last, first, 'json');
 
             //start send range
-            app.network.protocol.sendOne(connectionInfo, 'blocksync', {
-                'type': 'start',
-                'hash': list[0].hash + list[list.length - 1].hash
-            });
+            let promise = new Promise((res, rej) => {
+
+                app.network.protocol.sendOne(connectionInfo, 'blocksync', {
+                    'type': 'start',
+                    'hash': list[0].getHash() + list[list.length - 1].getHash()
+                });
+                res();
+
+            })
 
             for (let i in list) {
-                app.network.protocol.sendOne(connectionInfo, 'block', list[i]);
+                promise = promise
+                    .then(() => {
+                        return new Promise((res) => {
+                            setTimeout(() => {
+                                app.network.protocol.sendOne(connectionInfo, 'block', list[i].toJSON());
+                                res();
+                            }, 100);
+                        })
+                    })
             }
 
             //end send range 
-            app.network.protocol.sendOne(connectionInfo, 'blocksync', {
-                'type': 'finish',
-                'hash': list[0].hash + list[list.length - 1].hash,
-                'hasNext': sendOffset,
-            });
-
-            app.network.nodes.setState(connectionInfo, 'synced');
-
+            promise
+                .then(() => {
+                    app.network.protocol.sendOne(connectionInfo, 'blocksync', {
+                        'type': 'finish',
+                        'hash': list[0].getHash() + list[list.length - 1].getHash(),
+                        'hasNext': sendOffset,
+                    });
+                    app.network.nodes.setState(connectionInfo, 'synced');
+                    return Promise.resolve()
+                })
         }
 
         //todo: protocol exchange for lite clients. (headers (+creator pubkeys), signs, block data)
@@ -363,7 +382,6 @@ module.exports = function (app) {
 
             app.network.nodes.setState(connectionInfo, 'synced');
             let blocklist = app.db.get("sync/" + message.hash);
-            let activesync = app.db.get("activesync");
             //add blocks to blockchain
 
             let promise = Promise.resolve(-1);
@@ -376,8 +394,8 @@ module.exports = function (app) {
                                     resolve(block);
                                 });
                             } catch (e) {
-                                app.debug("error", "info", e.message);
-                                reject(e.message);
+                                app.debug("error", "blocksync", e.message);
+                                reject("blocksync error: " + e.message);
                             }
                         })
                     });
@@ -461,7 +479,7 @@ module.exports = function (app) {
         let errcode = '', errmsg = '';
         let invalid = false;
         try {
-            if (app.orwell.addToMemPool(message, app.getSyncState() == 'active' ? 'mempool' : 'sync')) {
+            if (app.orwell.addToMemPool(message, app.getSyncState() == 'active' ? 'mempool' : 'sync', connectionInfo)) {
                 //emit for all
                 if (app.getSyncState() == 'active')
                     app.emit("app.chain.mempooltx", { tx: message });
@@ -471,30 +489,34 @@ module.exports = function (app) {
             } else
                 invalid = true;
         } catch (e) {
+            console.log(e);
             errcode = e.code;
             invalid = true;
             errmsg = e.message;
-            app.debug('error', 'chain', 'transaction error: ' + errcode, errmsg)
+            app.debug('error', 'orwell', 'transaction error: ' + errcode, errmsg)
         }
 
         if (invalid && app.getSyncState() == 'active') {
             if (errcode != 'alreadyexist') {
-                app.debug('error', 'chain', 'transaction is rejected: ' + errcode, errmsg)
-                app.network.protocol.sendOne(connectionInfo, 'reject', {
-                    type: 'tx',
-                    hash: message.hash,
-                    code: errcode,
-                });
+                if (errcode)
+                    app.debug('error', 'orwell', 'transaction is rejected: ' + errcode, errmsg);
+                if (!errcode)
+                    app.network.protocol.sendOne(connectionInfo, 'reject', {
+                        type: 'tx',
+                        hash: message.hash,
+                        code: errcode,
+                    });
             }
         }
     });
 
 
     app.on("handler.needupdate", function (message, connectionInfo, selfMessage) {
+
         if (selfMessage)
             return false;
 
-        if (app.db.get("activesync"))
+        if (Object.keys(app.db.get("activesync")).length > 0)
             return false;//in sync process now
 
         app.setSyncState('readyToSync');

@@ -1,15 +1,16 @@
 class entity {
-    constructor(app, name) {
+    constructor(app, name, dbname) {
         this.app = app;
         this.class = null;
-        this.db = this.app.storage.getConnection();
+        this.dbname = dbname ? dbname : 'chain';
+        this.db = this.app.storage.getConnection(this.dbname);
         this.coll = null;
         this.name = name;
         this.init();
     }
     init() {
         if (!this.db || !this.coll) {
-            this.coll = this.app.storage.getCollection(this.name);
+            this.coll = this.app.storage.getCollection(this.name, this.dbname);
         }
     }
     save(block) {
@@ -47,7 +48,7 @@ class entity {
     count() {
         return this.coll.chain().find().count();
     }
-    getCollectio() {
+    getCollection() {
         return this.coll;
     }
     getDB() {

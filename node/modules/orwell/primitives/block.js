@@ -36,6 +36,7 @@ module.exports = (app) => {
             h.bits = this.bits;
             h.nonce = this.nonce;
             h.index = h.height = this.height
+            h.confirmation = this.confirmation;
             return h;
         }
         addTxFromHEX(hex) {
@@ -168,6 +169,9 @@ module.exports = (app) => {
                 ]
             }
 
+            if (this.confirmation)
+                obj1.confirmation = this.confirmation;
+
             for (let i in this.vtx) {
                 if (this.vtx[i])
                     obj1.tx.push(this.vtx[i].toJSON());
@@ -178,25 +182,25 @@ module.exports = (app) => {
         fromHex(hex) {
 
             let block = this.app.tools.bitPony.orwell_block.read(hex, true);
-
             this.setBlockHeader({
                 version: block.header.version,
-                hashPrevBlock: block.header.prev_block,
+                prev: block.header.prev_block,
                 hashMerkleRoot: block.header.merkle_root,
                 time: block.header.timestamp,
                 bits: block.header.bits,
                 nonce: block.header.nonce,
             });
 
-            this.getHash('hex');
             for (let i in block.txns) {
                 let t = ((txbody) => {
-                    let t = new this.app.orwell.TX(this.app);
+                    let t = new this.app.orwell.TX();
                     return t.fromHex(txbody)
                 })(block.txns[i])
                 this.vtx.push(t);
 
             }
+
+            this.getHash('hex');
 
             return this;
         }
@@ -233,8 +237,8 @@ module.exports = (app) => {
             let val = new this.app.orwell.BLOCK.VALIDATOR(this, context);
             //var val = new blockvalidator(this);
             let res = val.isValid();
-            if (!res[0])
-                this.validation_errors = res[1];
+            if (!res)
+                this.validation_errors = val.getErrors();
 
             return res;
         }
@@ -330,16 +334,25 @@ module.exports = (app) => {
             return {};
         }
 
-
-        static generateNewBlockTemplate(timestamp, coinbaseJSON) {
-
+        static generateNewBlockTemplate(timestamp, coinbaseBytes, keystore) {
             let mempool = app.orwell.getMemPool();
-            let txlist = [coinbaseJSON];
+            let fee = 0;
+            let txlist = [];
             for (let i in mempool) {
+                fee += mempool[i].fee;
                 txlist.push(mempool[i]);
             }
+
+            let coinbase = app.orwell.TX.createCoinbase(fee, coinbaseBytes, [keystore.privateKey]);
+            txlist.unshift(coinbase.toJSON());
+
             let latest = app.orwell.index.getTop();
-            let diff = app.orwell.getActualDiff();
+            if (app.cnf('consensus').genesisMode)
+                latest = { height: -1, id: '0000000000000000000000000000000000000000000000000000000000000000' };
+
+            let diff = Math.ceil(app.orwell.getDiffForHeight(latest.height + 1));
+            if (app.cnf('consensus').genesisMode)
+                diff = 1;
 
             return {
                 version: app.cnf("consensus").version,
@@ -352,10 +365,11 @@ module.exports = (app) => {
 
         }
 
-        static createNewBlock() {
+        static createNewBlock(coinbaseBytes, keystore) {
+            if (!keystore)
+                keystore = app.cnf('node');
             let now = parseInt(Date.now() / 1000);
-            let coinbase = app.orwell.TX.createCoinbase([app.cnf('node').privateKey]);
-            return app.orwell.BLOCK.generateNewBlockTemplate(now, coinbase.toJSON());
+            return app.orwell.BLOCK.generateNewBlockTemplate(now, coinbaseBytes, keystore);
         }
 
     }

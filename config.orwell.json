@@ -1,36 +1,36 @@
 {
     "tests": [],
-    "network": "orwl",
-    "orwl": {
+    "network": "main",
+    "main": {
         "port": 19841,
         "magic": "aa3a2b2f",
         "nodes": [
-            "morty.node.orwellcoin.org//19841",
             "127.0.0.1//19841"
         ],
         "modules": [
             "orwellminer",
             "storage",
             "pow",
-            "wallet",
             "rpc",
             "orwell",
+            "wallet",
             "networkhandler",
             "network"
         ],
         "consensus": {
             "version": 1,
             "protocol_version": 1,
+            "txversion": 1,
             "extends": "pow",
             "ignorePrevChilds": true,
             "shareStake": 0.3,
             "premine": 12,
             "maxtarget": 1,
+            "blockcount": 12,
             "blocktime": 60,
             "changeBranchDelay": 1,
             "algo": "pow",
             "powVersion": "orwell",
-            "blockEvery": 60,
             "blockSize": 1e7,
             "data.timeout": 300,
             "history": 300,
@@ -51,7 +51,8 @@
             "genesisMode": false,
             "syncmax": 200,
             "maturity": 100,
-            "minfeeperbyte": 1
+            "minfeeperbyte": 1,
+            "validationalert": 1
         },
         "pow": {
             "algo": "sha256d",
@@ -62,8 +63,8 @@
             "diffCut": 6
         },
         "node": {
-            "publicKey": "04aa443931cceeadbbf591f60dceb47b7051045c29d3130203532e7112fbe6a6e92af3ee724be384903c7220998386835864aa63e5a14513d4704777119dacdb94",
-            "privateKey": "58a38eee853f5a682c263c862a5d8d4a47deb5b853dd1f6cec241d884829ebea"
+            "publicKey": "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56",
+            "privateKey": "7b3ac584a28612d2731ae918d4e66af1ff6d0ce7aced8d54d81ba20b09113b0d"
         },
         "debug": {
             "network": true,
@@ -76,42 +77,47 @@
             "rpc": true
         },
         "genesis": {
-            "hash": "0f82f9182847ae694b61e8de6e21804c03747e6201983d3efd8d35fa9c743801",
+            "hash": "03460a0fc4febc5d367e13ed30cdc9bf81dc880b7977f4b9a4f200c073dad8da",
             "version": 1,
             "prev": "0000000000000000000000000000000000000000000000000000000000000000",
-            "merkle": "a0b2f8c9b6037982d5b8a83db22c30e187fcb446127d0ad54640c4b8d67f48b1",
-            "time": 1564305081,
+            "merkle": "df6f8b00652a6f28bb1e097e38132cb8ad2107a8cafc820f9a612efe029d64b4",
+            "time": 1574797243,
             "bits": 1,
             "fee": 0,
-            "nonce": 2,
-            "size": 274,
+            "nonce": 6,
+            "size": 309,
+            "height": 0,
             "tx": [
                 {
-                    "hash": "a0b2f8c9b6037982d5b8a83db22c30e187fcb446127d0ad54640c4b8d67f48b1",
+                    "hash": "0ca62fe69a5a9ad27dbcf4103bd99e2155f020ae6ef44a3fbdf60deca007cd2b",
                     "version": 1,
                     "in": [
                         {
                             "hash": "0000000000000000000000000000000000000000000000000000000000000000",
                             "index": 4294967295,
-                            "sig": "473046022100b7816cac60f40398d42acea16086a481eea79e9e969003e1db4715e50c62af32022100a2b28f6ddf60024a660e6cd51c558de69ec455f00b3c4e6c61d27d55f0ae1da6014102aa443931cceeadbbf591f60dceb47b7051045c29d3130203532e7112fbe6a6e9",
-                            "key": "02aa443931cceeadbbf591f60dceb47b7051045c29d3130203532e7112fbe6a6e9",
-                            "seq": 4294967295
+                            "sig": "4730450220663a36bd8a44ce4b5d58580eeb7b63ecd15aad913349bb7b71b69c0be6d3c233022100df0cca68097f774922690cc54b38bb7ce661a5d03b9ddb6409bf810138983f3a014102cb9ada76c4b57e5c37167ae243160fb9a6b78aa44829fe238dbd0e05c511febf",
+                            "writerAddress": "oVQqgB9Lc4vTt3mCjyBa63h2EpCqVYkLe5",
+                            "seq": 4294967295,
+                            "coinbase": "076e616e6f636174136c6170746f702f636f6d6d6f6e2d6d696e6572bb7fdd5d0100"
                         }
                     ],
                     "out": [
                         {
-                            "amount": 50000000000,
-                            "address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
-                            "script": "76a91462e907b15cbf27d5425399ebf6f0fb50ebb88f1888ac"
+                            "amount": 5000000000,
+                            "address": "oVQqgB9Lc4vTt3mCjyBa63h2EpCqVYkLe5",
+                            "script": "76a91489954ff8a36751a8d9465ae7fc4b4daf348f039d88ac"
                         }
                     ],
-                    "lock": 0,
                     "fee": 0,
-                    "size": 386
+                    "size": 228,
+                    "datascript": "",
+                    "coinbase": 1,
+                    "coinbaseBytes": "076e616e6f636174136c6170746f702f636f6d6d6f6e2d6d696e6572bb7fdd5d0100"
                 }
             ]
         },
         "rpc": {
+            "useServer": true,
             "server": {
                 "port": 41991,
                 "host": "127.0.0.1",
@@ -127,8 +133,17 @@
                 "ssl": null
             }
         },
-        "orwelldb":{
-            "path": "%home%/orwelldb/"
+        "orwelldb": {
+            "path": "%home%/orwelldb/",
+            "systemAddress": "oP6NNg6vH2GeUURCZhe9tREeVn98PcTHcc"
+        },
+        "wallet": {
+            "changeAddress": false,
+            "operationfee": {
+                "create": 1e6,
+                "write": 10,
+                "settings": 100
+            }
         }
     },
     "agent": {

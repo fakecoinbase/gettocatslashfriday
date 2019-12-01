@@ -20,15 +20,24 @@ app.on("app.mining.stop", (event) => {
             console.log('block added ', data.hash, app.orwell.index.getTop());
             data.send();
             setTimeout(() => {
-                app.orwellminer.start();
+                app.orwellminer.start(app.wallet.getAccount('miner'));
             }, 2000);
 
         });
 })
 
 app.on('init', () => {
-    console.log('inited');
-    app.orwellminer.start();
+    let keystore = app.wallet.getAccount('miner');
+    console.log('inited', keystore);
+    if (!keystore.privateKey)
+        throw new Error('Keystore miner is not found');
+
+    app.orwellminer.start(app.wallet.getAccount('miner'));
 });
 
+app.noConflict((stage) => {//stage can be beforeload (additional modules is not loaded yet) and beforeinit (additional modules is loaded but not inited)
+    if (stage == 'beforeload') {
+        app.config.arg[app.config.arg.network].rpc.useServer = false;
+    }
+});
 app.init();

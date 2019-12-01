@@ -8,8 +8,10 @@ class Rpc {
         this.methods = [];
     }
     init() {
-        if (this.app.cnf('debug').rpc)
+        if (this.app.cnf('rpc').useServer)
             this.app.debug("info", "rpc", "init rpc server")
+        else
+            this.app.debug("info", "rpc", "rpc server is disabled")
     }
     error(code, message) {
         return ([({ code: code, error: message }), null])
@@ -50,11 +52,10 @@ class Rpc {
         if (!params)
             params = [];
 
-        if (this.app.cnf('debug').rpc)
-            this.app.debug("info", "rpc", 'handled ' + name);
+        //if (this.app.cnf('debug').rpc)
+        this.app.debug("info", "rpc", 'handled ' + name);
 
         let res = this.methods[name](params, cb)
-
         if (res != -1) {
             if (!res)
                 res = [];
@@ -78,5 +79,8 @@ class Rpc {
 
 
 }
+
+Rpc.INVALID_RESULT = 0x1;
+Rpc.INVALID_PARAMS = 0x2;
 
 module.exports = Rpc

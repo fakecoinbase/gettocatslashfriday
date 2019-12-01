@@ -1,13 +1,26 @@
 module.exports = (app) => {
     class MemPool extends app.storage.Index {
         constructor() {
-            super(app, 'mempool', true);
+            super(app, 'mempool');
             this.init();
+        }
+        getPriorityList() {
+            let result = this.find({ 'key': { '$contains': 'fee/' } }, ["value", true]);
+
+            let arr = [];
+            for (let i in result) {
+                let tx = this.get(result[i].key.replace("fee/", ""));
+                if (tx)
+                    arr.push(tx);
+            }
+
+            return arr;
         }
         getList() {
             let arr = this.get('mempooltxlist');
             if (!arr || !(arr instanceof Array))
                 arr = [];
+                console.log(arr);
             return arr;
         }
         setList(arr) {
@@ -15,7 +28,7 @@ module.exports = (app) => {
             return arr || [];
         }
         getOrderedList() {
-
+            return this.getPriorityList();
         }
         getCount() {
             return this.getList().length;
@@ -28,48 +41,51 @@ module.exports = (app) => {
             }
             return f
         }
-        //todo: 
-        /*addTx(tx, cb, fromNet) {
+        getFee() {
+            let arr = this.getList();
+            let f = 0;
+            for (let i in arr) {
+                f += arr[i].fee;
+            }
+            return f
+        }
+        addTx(tx, cb, fromNet) {
             let list = this.getList();
             if (!list || !(list instanceof Array))
                 list = [];
 
             for (let i in tx.in) {
-                var prevAddress = (function (tx_in) {
-                    var bchain = require('../../../blockchain/index');
-                    var blockchain = new bchain();
-                    var out = blockchain.getOut(tx_in.hash, tx_in.index);
-                    return Script.scriptToAddr(out.scriptPubKey);
+                let prevAddress = ((tx_in) => {
+                    let out = this.app.orwell.consensus.dataManager.getOut(tx_in.hash, tx_in.index);
+                    return this.app.orwell.SCRIPT.scriptToAddr(out.scriptPubKey || out.script);
                 })(tx.in[i])
 
                 tx.in[i].prevAddress = prevAddress;
 
             }
 
-            var t = new Transaction();
-            t.fromJSON(tx);
-            hash = t.getHash();
-            t.toHex();
+            let t = this.app.orwell.TX.fromJSON(tx);
+            t.fromHex();
 
             if (t.coinbase) {
-                cb(null);
+                tx.errors = ['iscoinbase'];
+                cb(tx, t, false);
                 return false;
             }
 
-            var valid = new txVal(t);
-            if (this.get(hash).hash) {
+            if (this.get(tx.hash).hash) {
                 tx.errors = ['alreadyexist'];
                 cb(tx, t, false)
                 return;
             }
 
-            if (valid.isValidTx()) {
-                var testunspent = 0;
-                for (var inp in t.inputs) {
-                    var test = this.get("out/" + t.inputs[inp].hash + ":" + t.inputs[inp].index);
+            if (t.isValid()) {
+                let testunspent = 0;
+                for (let inp in tx.in) {
+                    let test = this.get("out/" + tx.in[inp].hash + ":" + tx.in[inp].index);
                     if (test && typeof test == 'string') {
                         testunspent++;
-                        console.log("unspent tx error:", "already have used utxo in mempool: ", t.inputs[inp].hash + ":" + t.inputs[inp].index + ", for tx " + test);
+                        console.log("unspent tx error:", "already have used utxo in mempool: ", tx.in[inp].hash + ":" + tx.in[inp].index + ", for tx " + test);
                     }
                 }
 
@@ -83,22 +99,18 @@ module.exports = (app) => {
                     this.addDSIndex(tx.hash, tx.out[0])
                 }
 
-                for (var o in t.outputs) {
-                    var out = t.outputs[o];
-                    this.addOutIndex('input', tx.hash, Script.scriptToAddr(out.scriptPubKey), out.amount);
+                for (let o in tx.out) {
+                    let out = tx.out[o];
+                    this.addOutIndex('input', tx.hash, this.app.orwell.SCRIPT.scriptToAddr(out.scriptPubKey || out.script), out.amount);
                 }
 
-
-                var bchain = require('../../../blockchain/index');
-                var blockchain = new bchain();
-
-                for (var inp in t.inputs) {
-                    var inpt = t.inputs[inp];
-                    var prevout;
+                for (let inp in tx.in) {
+                    let inpt = tx.in[inp];
+                    let prevout;
                     try {
                         this.set("out/" + inpt.hash + ":" + inpt.index, tx.hash);
-                        prevout = blockchain.getOut(inpt.hash, inpt.index);
-                        this.addOutIndex('output', tx.hash, Script.scriptToAddr(prevout.scriptPubKey), prevout.amount, fromNet);
+                        prevout = this.app.orwell.consensus.dataManager.getOut(inpt.hash, inpt.index);
+                        this.addOutIndex('output', tx.hash, this.app.orwell.SCRIPT.scriptToAddr(prevout.scriptPubKey || prevout.script), prevout.amount, fromNet);
                     } catch (e) {
                         //search in mempool
                         console.log("input error: ", inpt.hash + ":" + inpt.index, inpt)
@@ -109,22 +121,22 @@ module.exports = (app) => {
                 }
 
                 //create TX object from json, check tx validate, add
-                list.push(hash);
+                list.push(tx.hash);
                 this.setList(list);
-                this.set(hash, t.toJSON());
-                this.set("time/" + hash, new Date().getTime() / 1000);
+                this.set(tx.hash, tx);
+                this.set("time/" + tx.hash, new Date().getTime() / 1000);
+                this.set("fee/" + tx.hash, t.getFee());
                 cb(tx, t, true);
             } else {
-                tx.errors = valid.getErrors();
+                tx.errors = t.validation_errors;
                 cb(tx, t, false)
             }
         }
-
         addOutIndex(type, tx, addr, amount, events) {
-            if (config.debug.blockchain.indexing)
-                console.log("add unconfirmed index " + addr, tx, amount)
+            if (this.app.cnf('debug').indexing)
+                this.app.debug('info', 'mempool', "add unconfirmed index " + addr, tx, amount)
 
-            var addreses = this.get("addresstx/" + tx);
+            let addreses = this.get("addresstx/" + tx);
 
             if (!addreses || !(addreses instanceof Array))
                 addreses = [];
@@ -132,11 +144,11 @@ module.exports = (app) => {
             addreses.push(addr);
             this.set("addresstx/" + tx, addreses);
 
-            var addrind = this.get("address/" + addr);
+            let addrind = this.get("address/" + addr);
             if (!addrind || !(addrind instanceof Array))
                 addrind = [];
 
-            var obj = {
+            let obj = {
                 type: type, //input||output
                 tx: tx,
                 amount: amount
@@ -145,41 +157,59 @@ module.exports = (app) => {
 
             if (events) {
                 obj.address = addr;
-                chainEvents.emit("chain.event.unconfirmed.address", obj)
+                this.app.emit("chain.event.unconfirmed.address", obj)
             }
 
             this.set("address/" + addr, addrind)
             return addrind
         }
-
         removeTx(txHash) {
             //remove tx from pool
             //remove address index
 
-            var list = this.getList();
+            console.log('removeTx:', txHash);
+            let promise = Promise.resolve();
+
+            let list = this.getList();
             if (!list || !(list instanceof Array))
                 list = [];
             list.splice(list.indexOf(txHash), 1);
             this.setList(list);
 
             //remove address index
-            var addreses = this.get("addresstx/" + txHash);
+            let addreses = this.get("addresstx/" + txHash);
             if (!addreses || !(addreses instanceof Array))
                 addreses = [];
 
-            for (var i in addreses) {
-
-                this.remove("address/" + addreses[i]);
-
+            for (let i in addreses) {
+                promise = promise.then(() => { this.remove("address/" + addreses[i]); return Promise.resolve(); });
             }
 
-            this.remove("addresstx/" + txHash)
-            this.remove(txHash);
+            ///outs
+            let tx = this.get(txHash);
+            for (let i in tx.in) {
+                promise = promise.then(() => { this.remove("address/" + tx.in[i].hash + ":" + tx.in[i].index); return Promise.resolve(); });
+            }
+            //ds/address
 
+            for (let i in tx.out) {
+                let out = tx.out[i];
+                out.address = this.app.orwell.SCRIPT.scriptToAddr(out.scriptPubKey || out.script);
+                out.addrHash = this.app.orwell.SCRIPT.scriptToAddrHash(out.scriptPubKey || out.script).toString('hex');
+                promise = promise.then(() => { this.remove("ds/address/" + out.addrHash); return Promise.resolve(); });
+            }
+
+
+            return Promise.all([
+                promise,
+                this.remove("addresstx/" + txHash),
+                this.remove("fee/" + txHash),
+                this.remove("time/" + txHash),
+                this.remove(txHash)
+            ]);
         }
-
         have(txHash) {
-            var list = this.getList();
+            let list = this.getList();
             if (!list || !(list instanceof Array))
                 list = [];
 
@@ -187,28 +217,24 @@ module.exports = (app) => {
         }
 
         getOldest() {
-            var result = this.find({ 'key': { '$contains': 'time/' } }, ["value", false]);
+            let result = this.find({ 'key': { '$contains': 'time/' } }, ["value", false]);
             if (result.length)
                 return result[0].value;
             return 0;
         }
-
         addDSIndex(txid, out) {
-            out.address = Script.scriptToAddr(out.scriptPubKey);
-            out.addrHash = Script.scriptToAddrHash(out.scriptPubKey).toString('hex');
+            out.address = this.app.orwell.SCRIPT.scriptToAddr(out.scriptPubKey || out.script);
+            out.addrHash = this.app.orwell.SCRIPT.scriptToAddrHash(out.scriptPubKey || out.script).toString('hex');
 
-            if (config.debug.blockchain.indexing)
-                console.log("add unconfirmed ds index " + out.addrHash, txid)
-            var addrind = this.get("ds/address/" + out.addrHash);
+            this.app.debug('info', 'mempool', "add unconfirmed ds index " + out.addrHash, txid);
+            let addrind = this.get("ds/address/" + out.addrHash);
             if (!addrind || !(addrind instanceof Array))
                 addrind = [];
 
             addrind.push(txid);
-
-
             this.set("ds/address/" + out.addrHash, addrind)
             return addrind
-        }*/
+        }
 
     }
 

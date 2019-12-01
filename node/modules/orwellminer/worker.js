@@ -5,6 +5,11 @@ module.exports = function () {
         let DAPP = require("../../../index");
         let config = require('../../../config.orwell.json');
         let app = new DAPP(config);
+        app.noConflict((stage) => {//stage can be beforeload (additional modules is not loaded yet) and beforeinit (additional modules is loaded but not inited)
+            if (stage == 'beforeload') {
+                app.config.arg[app.config.arg.network].rpc.useServer = false;
+            }
+        })
         app.skipModules(['network', 'rpc']);
 
         app.on('init', () => {

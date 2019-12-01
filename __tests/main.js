@@ -11,8 +11,8 @@ app.on("app.debug", function (data) {
 
 
 app.on("ready", () => {
-    console.log('ready')
-})
+    console.log('ready');
+});
 
 app.on("data", function (tx) {
     //transaction have data for this-instance keystore (one of public key of wallet)
@@ -21,4 +21,4 @@ app.on("data", function (tx) {
 app.init();
 app.connect([
     "morty.node.orwellscan.org:19840"
-])
+]);

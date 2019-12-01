@@ -35,8 +35,8 @@ module.exports = (app) => {
                 throw new Error('can not find block ' + hash);
             return block
         }
-        removeBlock(block) {
-            this.remove(block.hash);
+        removeBlock(hash) {
+            this.remove(hash);
         }
 
     }
