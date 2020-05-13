@@ -235,7 +235,10 @@ class app extends EventEmitter {
             "port": 19841,
             "magic": "aa3a2b2f",
             "nodes": [
-                "127.0.0.1//19841"
+                "kenny.node.orwellscan.org//19841",
+                "morty.node.orwellscan.org//19841",
+                "piter.node.orwellscan.org//19841",
+                "summer.node.orwellscan.org//19841",
             ],
             "modules": [
                 "storage",
@@ -254,9 +257,11 @@ class app extends EventEmitter {
                 "extends": "ddpos",
                 "ignorePrevChilds": true,
                 "shareStake": 0.3,
-                "delegates": [
-                    "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56",
-                    "03032f0fa03e1e6ec9dac5e84055bffbb99d57abd6de1e48741f0aa2471d72cd76"
+                "delegates": [//this delegates uses until masternodes less then consensus.validatorCount, else - generating dynamic list for every round
+                    "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56",//kenny
+                    "0217a1f3bc8292e64d27cd89482011e1db10151174240871da35eed6cafb8855fe",//morty
+                    "0224d2b65a6204c3a245824fa45219492faaaaf3fbaccfb0c48969c7cf56797ee5",//piter
+                    "03d4f41887a01690f00ffce7abb93d95a6386c42e7e64db1cf663b0fbf1f859b49",//summer
                 ],
                 "timeout": 60,
                 "pause": 30,

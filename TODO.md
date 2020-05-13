@@ -6,3 +6,5 @@
 * democracy config/consensus parameters for soft forks
 * net states with merkle tree for light clients
 * spv wallet and merkleblock/filteradd/filterremove protocol messages implementation
+* use hightload storage system (graphql?), not lokijs.
+* update indexes mechanism 
