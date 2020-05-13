@@ -6,7 +6,7 @@ class network {
         this.reconnects = [];
         this.node = {};
         this.inited = false;
-
+        this.socketQueue = {};
     }
     init() {
 
@@ -285,9 +285,7 @@ class network {
                             this.protocol.addNode(addr, function () {
 
                                 this.reconnects[addr] = 0;
-
-                                if (this.app.cnf('debug').peer)
-                                    this.app.debug('warn', 'network', "client " + addr + " reconnected");
+                                this.app.debug('warn', 'network', "client " + addr + " reconnected");
                             })
                         }, this.app.tools.rand(30, 90));
 
@@ -377,9 +375,10 @@ class network {
             throw new Error('invalid size of payload ' + d.payloadlength + ' - ' + d.payload.length);
 
         if (sum.toString('hex') != d.checksum) {
-            console.log("orig checksum", osum, "new checksum", d.checksum, "after: ", d.checksum, "diff:", sum);
+            console.log("orig checksum", osum, "new checksum", d.checksum, "after: ", d.checksum, "diff:", sum, 'length', d.payload.length);
             throw new Error(' invalid checksum ' + sum.toString('hex') + " - " + d.checksum);
         }
+
         if (d.magic != this.separator())
             throw new Error('invalid separator ' + parseInt(d.magic).toString(16) + " - " + this.separator());
 
@@ -394,25 +393,41 @@ class network {
             this.app.debug('network', 'error', ' can not find node public key, maybe node is not inited? ' + addr)
             return false;
         }
+
         msg = this.buildTransportLayer(encryptedBuffer, !isFirstMessage);
-        let sendmessage = function (msg, socket) {
-            socket.write(msg, function () {
-            });
-        }
 
         let socket = this.nodes.get("connection/" + addr);
         if (!socket.STATUS || socket.destroyed === true) {
             this.protocol.addNode(addr, (rinfo) => {
-                sendmessage(msg, this.nodes.get("connection/" + this.protocol.getAddressUniq(rinfo)));
+                this.writebuffer(this.protocol.getAddressUniq(rinfo), msg);
+                // sendmessage(msg, this.nodes.get("connection/" + this.protocol.getAddressUniq(rinfo)));
             })
         } else
             try {
-                sendmessage(msg, socket);
+                this.writebuffer(addr, msg);
+                //sendmessage(msg, socket);
             } catch (e) {
                 this.protocol.addNode(addr, (rinfo) => {
-                    sendmessage(msg, this.nodes.get("connection/" + this.protocol.getAddressUniq(rinfo)));
+                    this.writebuffer(this.protocol.getAddressUniq(rinfo), msg);
+                    //sendmessage(msg, this.nodes.get("connection/" + this.protocol.getAddressUniq(rinfo)));
                 })
             }
+    }
+    writebuffer(unique, msg) {
+
+        if (!this.socketQueue[unique])
+            this.socketQueue[unique] = Promise.resolve();
+
+        this.socketQueue[unique] = this.socketQueue[unique]
+            .then(() => {
+                let socket = this.nodes.get("connection/" + unique);
+                return new Promise((resolve) => {
+                    socket.write(msg, () => {
+                        resolve();
+                    })
+                })
+            })
+
     }
 }
 

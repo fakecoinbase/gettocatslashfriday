@@ -1,0 +1,73 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+	<script type='text/javascript'>
+
+		function createAddress() {
+
+			let name = prompt ( "Account name" );
+			if (!name){
+				alert('Invalid name!');
+				return;
+			}
+
+			$("#accName").val(name);
+			$("#createForm").submit();
+
+		}
+	
+	</script>
+
+	<form action='/wallet/create' id='createForm' style='display:none' method='POST'>
+	
+	<input type='text' name='name' id='accName'>
+	
+	</form>
+
+	<a class='btn btn-primary' onclick='return createAddress();' href='#'>Create new account</a>
+	<a class='btn btn-primary' href='/wallet/send'>Send coins</a>
+	<br /><br />
+
+
+	<table class='table table-bordered table-striped table-responsive'>
+		<tr class='text-center'>
+			<th>Address</th>
+			<th>Name</th>
+			<th>Balance</th>
+		</tr>
+
+		{% for acc in list %}
+
+			<tr class='text-center'>
+
+				<td>
+					{{acc.address}}
+				</td>
+				<td>
+					<a href='/wallet/account/{{acc.name}}'>
+						{% if acc.name == '0' %}
+							default account
+						{% else %}
+							{{acc.name}}
+						{% endif %}
+					</a>
+				</td>
+				<td>
+					{{acc.balancehr}}
+				</td>
+
+			</tr>
+
+
+		{% endfor %}
+
+		<tr class='text-center'>
+			<td colspan='3'>
+			<a onclick='return createAddress();' href='#'>Create new account</a>
+			</td>
+		</tr>
+
+	</table>
+
+{% endblock %}

@@ -1,448 +1,16 @@
 const bitPony = require('bitpony');
 const dscript = require('orwelldb').datascript;
-const orwelldb = require('orwelldb');
-
 
 module.exports = function (app) {
 
-    app.rpc.addMethod("help", function (params, cb) {
-
-        let out = "";
-        let cliname = 'orw';
-
-        function nl() {
-            return "\n";
-        }
-
-        out += nl() + (cliname + " client " + app.cnf('agent').name + " " + app.cnf('agent').version)
-        out += nl()
-        out += nl() + ("Usage:")
-        out += nl() + (cliname + " [option] <command>\tsend command to " + cliname)
-        out += nl() + (cliname + " <command> help\t help about command")
-        out += nl() + (cliname + " help\t commands list")
-        out += nl()
-        out += nl() + ("Available Commands:")
-        out += nl() + ("> addresses:")
-        out += nl() + (cliname + " getaddressbalance <address>")
-        out += nl() + (cliname + " getaddressmempool <address>")
-        out += nl() + (cliname + " getaddresstxids <address>")
-        out += nl()
-        out += nl() + ("> blockchain:")
-        out += nl() + (cliname + " getbestblockhash")
-        out += nl() + (cliname + " getblock <hash1,...,hashN>")
-        out += nl() + (cliname + " getblockcount")
-        out += nl() + (cliname + " getblockhash <index>")
-        out += nl() + (cliname + " getblockheader <hash1,...,hashN>")
-        out += nl() + (cliname + " getdifficulty")
-        out += nl() + (cliname + " getmempoolinfo")
-        out += nl() + (cliname + " getrawmempool")
-        out += nl() + (cliname + " gettxout <txid> <n>")
-        out += nl() + (cliname + " consensus")
-        out += nl() + (cliname + " gettx <hash>")
-        out += nl() + (cliname + " printtx <hash>")
-
-        out += nl() + (cliname + " getblockchaininfo")//
-        out += nl() + (cliname + " getspentinfo")
-        out += nl() + (cliname + " gettxoutproof [<txid>,...] ( blockhash )")//
-        out += nl() + (cliname + " verifychain [checklevel] [numblocks]")//
-        out += nl() + (cliname + " getblockhashes <timestamp>")//?
-        out += nl()
-        out += nl() + ("> control:")
-        out += nl() + (cliname + " help");
-        out += nl() + (cliname + " stop")
-        out += nl()
-        out += nl() + ("> democracy:")
-        out += nl() + (cliname + " democracy.create <type> [paramsjsonarray]")//create question
-        out += nl() + (cliname + " democracy.info <id>")//get info about question
-        out += nl()
-        out += nl() + ("> Mining:")
-        out += nl() + (cliname + " getblocktemplate <jsonobj>")
-        out += nl() + (cliname + " submitblock <json>")
-
-        out += nl() + (cliname + " getmininginfo")//
-        out += nl()
-        out += nl() + ("> Network:")
-        out += nl() + (cliname + " getconnectioncount")//
-        out += nl() + (cliname + " getnetworkinfo")//
-        out += nl() + (cliname + " getpeerinfo")
-        out += nl() + (cliname + " ping")//
-        out += nl() + (cliname + " addnode <host//port> ")
-        out += nl() + (cliname + " addnode <host> [port]")
-        out += nl()
-        out += nl() + ("> Rawtransactions:")
-        out += nl() + (cliname + " createrawtransaction [ [tx, indexoutinthistx, addrin] ] [ [amountinsatoshi, address] ] ( locktime )")
-        out += nl() + (cliname + " createrawtransaction <hex> ( locktime )");
-        out += nl() + (cliname + " sendrawtransaction [ [tx, indexoutinthistx, addrin] ] [ [amountinsatoshi, address] ] ( locktime )");
-        out += nl() + (cliname + " sendrawtransaction <hex>");
-        out += nl() + (cliname + " getrawtransaction <txid>");
-        out += nl() + (cliname + " sendrawtransaction <hex>");
-
-        out += nl() + (cliname + " decoderawtransaction <hex> ");
-        out += nl() + (cliname + " decodescript <hex>");//
-
-        out += nl()
-        out += nl() + ("> Datascript:")
-        out += nl() + (cliname + " decodedatascript <hex> [dbname]"); //dbname used only if need decrypt datascript with keystore
-        out += nl() + (cliname + " encodedatascript <json_array_of_dscommand> [dbname]"); //dbname used for encryption. If dbname is not specified - dont use encryption
-        //pack datascript with create command and send tx to network:
-        out += nl() + (cliname + " senddatascript <fromaddress> <toaddress> <hex>");
-        out += nl() + (cliname + " dbcreate <fromaddress> <toaddress> <dataset> <privileges> [is_private=false]"); //is_private - is writeScript. If true - use 0x55 0x60 (that mean check privileges table), else write for all
-        out += nl() + (cliname + " dbsettings <fromaddress> <toaddress> <dataset> <settings_json>"); //can change only privileges and writeScript in this version.
-        out += nl() + (cliname + " dbwrite <fromaddress> <toaddress> <dataset> <data_json_array>"); //data is array of json_content or json_content. 
-        //dbgetsettings
-        //address to dbname
-        //dbname to address
-        //work with localdb
-        out += nl() + (cliname + " syncdb <dbname>")//sync db from blockchain to local database
-        out += nl() + (cliname + " cleardb <dbname>")//clear local database
-
-
-        out += nl()
-        out += nl() + ("> Keystore:")
-        out += nl() + (cliname + " addpem <path/to/file> <dbname> [datasetname]");
-        out += nl() + (cliname + " rempem <dbname> [datasetname]");
-        out += nl() + (cliname + " getpem <dbname> [datasetname]");
-        //todo: import/export keystore
-
-        out += nl()
-        out += nl() + ("> Wallet:")
-        out += nl() + (cliname + " backupwallet <path/to>")
-        out += nl() + (cliname + " dumpprivkey <address>")
-        out += nl() + (cliname + " dumpwallet <path/to>")
-        out += nl() + (cliname + " importwallet <path/from>")
-        out += nl() + (cliname + " importprivkey <key>")
-
-        out += nl() + (cliname + " getaccount <address>")
-        out += nl() + (cliname + " getaccountaddress <account_name>")
-        out += nl() + (cliname + " getaddressesbyaccount <account_name>")
-        out += nl() + (cliname + " getnewaddress <account_name>")
-        out += nl() + (cliname + " getbalance <account_name>")
-        out += nl() + (cliname + " getreceivedbyaccount <account_name> [confirmation=6]")
-        out += nl() + (cliname + " getreceivedbyaddress <address> [confirmation=6]")
-        out += nl() + (cliname + " printtx <txid>")
-        out += nl() + (cliname + " getunconfirmedbalance ")
-        out += nl() + (cliname + " getwalletinfo <account_name>")
-        out += nl() + (cliname + " listaccounts [confirmation=6]")
-        out += nl() + (cliname + " listaddressgroupings ")
-        out += nl() + (cliname + " listlockunspent ")
-        out += nl() + (cliname + " listreceivedbyaccount [minconf=6]")
-        out += nl() + (cliname + " listreceivedbyaddress [minconf=6] ")
-        out += nl() + (cliname + " listtransactions <account_name> [count=500] [fromhash]")
-        out += nl() + (cliname + " move <fromaccount> <toaccount> amount")
-        out += nl() + (cliname + " sendmany <fromaccount> {'address':amount,...}")
-        out += nl() + (cliname + " sendfrom <fromaccount> <address> <amount> [datascript]")
-        out += nl() + (cliname + " sendtoaddress <address> <amount> [datascript]")
-        out += nl() + (cliname + " setaccount <address> <account>")
-        out += nl() + (cliname + " settxfee <amount>")
-        out += nl() + (cliname + " signmessage <address> <message>")
-
-
-        out += nl()
-        out += nl() + ("> Util:")
-        out += nl() + (cliname + " validateaddress <address>");
-        out += nl() + (cliname + " verifymessage <address> <signature> <message>");
-
-        return cb.apply(this, app.rpc.success(out));
-    });
-
-
-    app.rpc.addMethod('ping', () => {
-        return app.rpc.success({ pong: 1 })
-    });
-
-    app.rpc.addMethod("getblocktemplate", function (params) {
-        //params0 - account name for reward.
-        let top = {}, bits = 0;
-        if (app.cnf('consensus').genesisMode) {
-            top = { height: -1, id: '0000000000000000000000000000000000000000000000000000000000000000' };
-            bits = parseInt(app.cnf('btcpow').maxtarget, 16);
-        } else {
-            top = app.orwell.index.getTop();
-            bits = app.orwell.getActualDiff();
-        }
-
-        let txs = app.orwell.mempool.getPriorityList();
-        let workid = app.orwell.miningWork.createWorkId(top.id, top.height, bits, txs.length);
-        let work_ = app.orwell.miningWork.get(workid);
-        app.debug("info", "rpc", workid + ": " + (work_.workid ? 'hit' : 'miss'))
-        if (work_.workid)
-            return app.rpc.success(work_);
-
-        let list = [], fee = 0, txlist = [];
-        for (let i in txs) {
-            let tr = new app.orwell.TX.fromJSON(txs[i]);
-            txlist.push(tr);
-            let data = tr.toHex(), hash = tr.getHash(), f = tr.getFee();
-            list.push({
-                data: data,
-                txid: hash,
-                hash: hash,
-                fee: f,
-            });
-
-            fee += f;
-        }
-
-        let keys = app.wallet.getAccount(params[1] ? params[1] : 'miner')
-        let coinbase = app.orwell.TX.createCoinbase([keys.privateKey], top.height, fee);
-        let coinbaseTx = {
-            data: coinbase.toHex(),
-            txid: coinbase.getHash(),
-            hash: coinbase.getHash(),
-            fee: coinbase.getFee(),
-        }
-
-        //TODO: 10% of reward go to block author in "submitblock" method
-        //TODO: masternodes fee
-        let amount = app.pow.getBlockValue(fee, top.height + 1);
-
-        let work = {
-            capabilities: [],
-            version: app.cnf("consensus").version,
-            rules: [],
-            previousblockhash: top.id,
-            coinbaseaux: { flags: "" },
-            coinbasevalue: amount,
-            coinbaseTX: coinbaseTx,
-            target: app.orwell.bits2target(bits),
-            mintime: parseInt(new Date().getTime() / 1000 - 3600),
-            noncerange: "00000000ffffffff",
-            sigoplimit: 1e7 / 50,
-            sizelimit: app.cnf("consensus").blockSize,
-            weightlimit: 4000000,
-            curtime: parseInt(new Date().getTime() / 1000),
-            bits: typeof bits != 'string' ? parseInt(bits).toString(16) : bits,
-            mutable: [
-                "time",
-                "transactions",
-                "prevblock"
-            ],
-            height: top.height + 1,
-            transactions: list,
-            workid: workid
-        };
-
-        app.debug("info", "rpc", work)
-        app.orwell.miningWork.set(workid, work);
-        return app.rpc.success(work);
-
-    });
-
-    app.rpc.addMethod("validateaddress", function (params, cb) {
-        let address = params[0];
-        let val = false
-
-        try {
-            val = app.orwell.ADDRESS.isValidAddress(address)
-        } catch (e) {//not valid base58 is catched
-            try {
-                if (address.length == 40) {//hash of pubkey
-                    addr = app.orwell.ADDRESS.generateAddressFromAddrHash(addr)
-                    val = true;
-                } else {
-                    addr = app.orwell.ADDRESS.generateAddressFromPublicKey(address);//its hash
-                    val = true;
-                }
-            } catch (e) {
-
-            }
-        }
-
-        return app.rpc.success({ isvalid: val, address: address });
-    });
-
-    app.rpc.addMethod("submitblock", function (params, cb) {
-        let id = null;
-        let b = null;
-
-        let blockhex = params[0], workid = params[1];
-        if (blockhex) {
-
-
-            let h = app.orwell.index.get('top').height + 1;
-            b = app.orwell.BLOCK.fromHEX(blockhex);
-
-            try {
-                if (app.cnf("consensus").genesisMode)
-                    b.height = 0;
-                else
-                    b.height = h;
-                app.orwell.addBlock(b, 'rpc', { workid: workid }, function (block, _, inMainNet) {
-                    //send to all
-                    app.debug("info", "orwell", "added new block by rpc ", block.hash, block.validation_errors.length, block.validation_errors);
-                    if (workid)
-                        app.orwell.miningWork.remove(workid);
-
-                    if (block.validation_errors.length == 0) {
-
-                        if (app.cnf("consensus").genesisMode) {
-                            out += nl() + ('completed, put next lines into config of your network:\n');
-                            out += nl() + ('### NEW GENESIS ###\n');
-                            let b = block.toJSON();
-                            out += nl() + (JSON.stringify({
-                                header: {
-                                    hash: b.hash,
-                                    version: b.version,
-                                    bits: b.bits,
-                                    nonce: b.nonce,
-                                    time: b.time,
-                                    hashPrevBlock: b.hashPrevBlock,
-                                    hashMerkleRoot: b.hashMerkleRoot,
-                                },
-                                txlist: [block.vtx[0].toHex()]
-                            }));
-                            out += nl() + ("### NEW GENESIS ###");
-                            process.exit(0);//can not work non-stop in genesis mode
-                        } else {
-                            block.send();
-                            cb(null, []);
-                        }
-                    } else {
-                        cb(null, block.validation_erros[0]);
-                    }
-                });
-            } catch (e) {
-                //already have this tx or not valid data
-                app.debug("info", "orwell", 'block already exist', e)
-                return app.rpc.error(-1, 'block already exist')
-            }
-
-            return -1;
-        } else {
-            return app.rpc.error(-1, 'invalid block hex');
-        }
-    });
-
-
-    app.rpc.addMethod("getdifficulty", function (params, cb) {
-        return app.rpc.success(app.pow.difficulty(app.orwell.getActualDiff()));
-    });
-
-    app.rpc.addMethod("parseblock", function (params, cb) {
-        return app.rpc.success(app.orwell.BLOCK.fromHEX(params[0]));
-    });
-
-    app.rpc.addMethod("getinfo", function (params, cb) {
-        return app.rpc.success({
-            "version": app.cnf("consensus").version,
-            "protocolversion": app.cnf("consensus").version,
-            "walletversion": app.cnf("agent").version,
-            "balance": 0,//TODO: wallet.getBalance(0),
-            "blocks": app.orwell.blockpool.blockCount(),
-            "timeoffset": 0,
-            "connections": app.network.protocol.getNodeList().length,
-            "proxy": "",
-            "difficulty": app.pow.difficulty(app.orwell.getActualDiff()),
-            "testnet": app.cnf('network') == 'testnet',
-            "keypoololdest": app.orwell.mempool.getOldest(),
-            "keypoolsize": app.orwell.mempool.getCount(),
-            "paytxfee": 0,//wallet.fee,
-            "datasetfee": 0
-        }
-        );
-    });
-
-    app.rpc.addMethod("getmininginfo", function (params, cb) {
-        return app.rpc.success({
-            "blocks": app.orwell.blockpool.blockCount(),
-            "currentblocksize": app.orwell.mempool.getSize(),
-            "currentblockfee": app.orwell.mempool.getFee(),
-            "currentblocktx": app.orwell.mempool.getCount(),
-            "difficulty": app.pow.difficulty(app.orwell.getActualDiff()),
-            "genproclimit": 1,
-            "networkhashps": app.pow.currHashRate(),
-            "testnet": app.cnf('network') == 'testnet',
-            "chain": app.cnf('network'),
-            "generate": false
-        });
-    });
-
-    app.rpc.addMethod("sendtoaddress", function (params, cb) {
-        let address = params[0];
-        let amount = params[1];
-        let dsHEX = params[2] ? params[2] : '';
-        let result = app.wallet.send(0, address, amount * app.cnf('consensus').satoshi, dsHEX);
-
-        if (result.status) {
-            return app.rpc.success(result.hash);
-        } else
-            return app.rpc.error(app.rpc.INVALID_RESULT, result.error);
-    });
-
-    app.rpc.addMethod("sendfrom", function (params, cb) {
-        let account_id = params[0], address = params[1], amount = params[2], datascriptHEX = params[3];
-        let acc = app.orwell.resolveWalletAccount(account_id);
-        let to = app.orwell.resolveAddress(address);
-
-
-        if (!acc || !acc.address)
-            return app.rpc.error(app.rpc.INVALID_PARAMS, 'account not exist');
-
-        if (!app.orwell.ADDRESS.isValidAddress(to))
-            return app.rpc.error(app.rpc.INVALID_PARAMS, 'address is not valid ' + to);
-
-        if (amount <= 0)
-            return app.rpc.error(app.rpc.INVALID_PARAMS, 'amount is not valid');
-
-        let result = app.wallet.sendFromAddress(acc.address, to, amount * app.cnf('consensus').satoshi, datascriptHEX);
-
-        if (result.status) {
-            return app.rpc.success(result.hash);
-        } else
-            return app.rpc.error(app.rpc.INVALID_RESULT, result);
-    });
-
-    app.rpc.addMethod("listaccounts", function (params, cb) {
-
-        let list = app.wallet.getAccounts();
-        for (let i in list) {
-            list[i].balance = app.wallet.getBalance(list[i].name);
-            list[i].balancehr = app.wallet.getBalance(list[i].name) / app.cnf("consensus").satoshi;
-        }
-
-        return app.rpc.success(list);
-    });
-
-    app.rpc.addMethod("accountaddress", function (params, cb) {
-        let id = params[0];
-
-        if (!id)
-            id = 0;
-
-        let obj = app.wallet.getAccount(id);
-        return app.rpc.success(obj.address);
-    });
-
-    app.rpc.addMethod("dumpprivkey", function (params, cb) {
-        let addr = params[0];
-
-        if (!addr || !app.orwell.ADDRESS.isValidAddress(addr))
-            return app.rpc.error(app.rpc.INVALID_PARAMS, "need valid address to dump private key");
-
-        let obj = app.wallet.findAccountByAddr(addr);
-
-        if (!obj || !obj.privateKey)
-            return app.rpc.error(app.rpc.INVALID_PARAMS, "need valid and exist address to dump private key");
-
-        let key = obj.privateKey;
-        let pub = obj.publicKey;
-
-        return app.rpc.success({ address: addr, publicKey: pub, privateKey: key });
-    });
-
-    app.rpc.addMethod("balance", function (params, cb) {
-        let id = params[0];
-        let balance = app.wallet.getBalance(id);
-        return app.rpc.success({ balance: balance / app.cnf('consensus').satoshi + 0 });
-    });
-
-    app.rpc.addMethod("chain", function (params, cb) {
-
+    app.rpc.handlers.chain = function (params, cb) {
         let limit = params[0] || 30, offset = params[1] || 0, list = [];
         let arr = app.orwell.blockpool.getLastBlocks(limit, offset);
 
         for (let i in arr) {
             let block = arr[i];
+            let b = app.orwell.BLOCK.fromJSON(arr[i]);
+            block = b.toJSON('hash,fee,size,height,confirmation,hrk');
             block.output = 0;
             block.size = 0;
             block.fee = 0;
@@ -464,20 +32,9 @@ module.exports = function (app) {
 
         let count = app.orwell.blockpool.blockCount();
         return app.rpc.success({ list: list, offset: offset, limit: limit, items: list.length, count: count });
-    });
+    }
 
-    app.rpc.addMethod("bestblockhash", function (params, cb) {
-        let info = app.orwell.index.getTop();
-
-        if (!info.id)
-            info = { hash: app.orwell.GENESIS.hash, height: 0 };
-        else
-            info.hash = info.id;
-
-        return app.rpc.success(info);
-    });
-
-    let block_fnc = function (method, params, cb) {
+    app.rpc.handlers.block = function (method, params, cb) {
 
         let hashes = [];
         if (method == 'height') {
@@ -507,9 +64,8 @@ module.exports = function (app) {
                 continue;
             }
 
-            block = block.toJSON();
+            block = block.toJSON('hash,fee,size,height,confirmation,fromBlock,hrk');
 
-            block.diff = block.bits;
             block.reward = app.orwell.getBlockValue(block.fee, block.height) / app.cnf('consensus').satoshi;
             block.next_block = app.orwell.index.get("index/" + (block.height + 1));
             for (let k in block.tx) {
@@ -517,10 +73,9 @@ module.exports = function (app) {
 
                 let tx_in = 0;
                 for (let m in block.tx[k].in) {
-                    let a = app.orwell.SCRIPT.sigToArray(block.tx[k].in[m].sig);
-                    block.tx[k].in[m].writer = a.publicKey;
-                    block.tx[k].in[m].writerAddress = app.orwell.ADDRESS.generateAddressFromPublicKey(a.publicKey);
-                    block.tx[k].in[m].sign = a.der;
+                    block.tx[k].in[m].writer = block.tx[k].s[m][1];
+                    block.tx[k].in[m].writerAddress = app.orwell.ADDRESS.generateAddressFromPublicKey(block.tx[k].s[m][1]);
+                    block.tx[k].in[m].sign = block.tx[k].s[m][0];
 
                     let prevout = app.orwell.consensus.dataManager.getOut(block.tx[k].in[m].hash, block.tx[k].in[m].index);
                     if (prevout && prevout.amount)
@@ -536,24 +91,37 @@ module.exports = function (app) {
                 block.tx[k].in_amount = tx_in / app.cnf('consensus').satoshi;
                 block.tx[k].out_amount = tx_out / app.cnf('consensus').satoshi;
 
-                if (block.tx[k].coinbaseBytes) {
+                if (block.tx[k].cb) {
                     let cbData = {};
-                    let reader = new bitPony.reader(new Buffer(block.tx[k].coinbaseBytes, 'hex'));
-                    let res = reader.string(0);
-                    cbData['authorName'] = res.result.toString();
-                    res = reader.string(res.offset);
-                    cbData['hardwareName'] = res.result.toString();
-                    res = reader.uint32(res.offset);
-                    cbData['time'] = res.result;
-                    res = reader.var_int(res.offset);
-                    cbData['bytes_length'] = res.result;
-                    cbData['bytes'] = [];
-                    let offset = res.offset;
+                    try {
+                        let reader = new bitPony.reader(new Buffer(block.tx[k].cb, 'hex'));
+                        let res = reader.string(0);
+                        cbData['authorName'] = res.result.toString();
+                        res = reader.string(res.offset);
+                        cbData['hardwareName'] = res.result.toString();
+                        res = reader.uint32(res.offset);
+                        cbData['time'] = res.result;
+                        res = reader.var_int(res.offset);
+                        cbData['bytes_length'] = res.result;
+                        cbData['bytes'] = [];
+                        let offset = res.offset;
 
-                    for (let m = 0; m < cbData['bytes_length']; m++) {
-                        res = reader.uint8(offset);
-                        cbData['bytes'].push(parseInt(res.result).toString(16));
-                        offset = res.offset;
+                        for (let m = 0; m < cbData['bytes_length']; m++) {
+                            res = reader.uint8(offset);
+                            cbData['bytes'].push(parseInt(res.result).toString(16));
+                            offset = res.offset;
+                        }
+                    } catch (e) {
+                        cbData['bytes'] = [];
+                        let offset = 0;
+                        let res = 0;
+                        let buff = new Buffer(block.tx[k].cb, 'hex');
+                        let reader = new bitPony.reader(buff);
+                        for (let m = 0; m < buff.length; m++) {
+                            res = reader.uint8(offset);
+                            cbData['bytes'].push(parseInt(res.result).toString(16));
+                            offset = res.offset;
+                        }
                     }
 
                     block.tx[k].coinbaseData = cbData;
@@ -561,23 +129,16 @@ module.exports = function (app) {
 
             }
 
+            console.log(block.tx[0]);
             if (block)
                 list.push(block);
 
         }
+
         return app.rpc.success(list);
     }
 
-    app.rpc.addMethod("height", (params, cb) => {
-        return block_fnc('height', params, cb);
-    });
-
-    app.rpc.addMethod("block", function (params, cb) {
-        return block_fnc('block', params, cb);
-    });
-
-
-    app.rpc.addMethod("tx", function (params, cb) {
+    app.rpc.handlers.tx = function (params, cb) {
         let hash = params[0];
         let returnRawData = params[1];
 
@@ -589,13 +150,12 @@ module.exports = function (app) {
             try {
                 tx = app.orwell.consensus.dataManager.getTx(hash);
                 if (tx)
-                    tx = tx.toJSON();
+                    tx = tx.toJSON('hash,fee,size,height,confirmation,time,fromBlock,hrk');
             } catch (e) {
 
             }
 
             if (!tx) {//search in mempool
-
                 tx = app.orwell.mempool.get(hash);
                 if (tx)
                     tx.fromMemoryPool = true;
@@ -603,9 +163,9 @@ module.exports = function (app) {
 
                 let txk = app.orwell.index.get("tx/" + tx.hash);
                 let b = app.orwell.consensus.dataManager.getData(txk.block);
-                tx.confirmation = app.orwell.index.get('top').height - b.height + 1;
-                tx.fromBlock = b.hash;
-                tx.fromIndex = txk.index;
+                //tx.confirmation = app.orwell.index.get('top').height - b.height + 1;
+                //tx.fromBlock = b.hash;
+                //tx.fromIndex = txk.index;
                 tx.time = b.time;
             }
 
@@ -614,10 +174,9 @@ module.exports = function (app) {
 
             let tx_in = 0;
             for (let m in tx.in) {
-                let a = app.orwell.SCRIPT.sigToArray(tx.in[m].sig);
-                tx.in[m].writer = a.publicKey;
-                tx.in[m].writerAddress = app.orwell.ADDRESS.generateAddressFromPublicKey(a.publicKey);
-                tx.in[m].sign = a.der;
+                tx.in[m].writer = tx.s[m][1];
+                tx.in[m].writerAddress = app.orwell.ADDRESS.generateAddressFromPublicKey(tx.in[m].writer);
+                tx.in[m].sign = tx.s[m][0];
 
                 let prevout = app.orwell.consensus.dataManager.getOut(tx.in[m].hash, tx.in[m].index);
                 if (prevout && prevout.amount)
@@ -630,28 +189,11 @@ module.exports = function (app) {
                 tx_out += tx.out[m].amount;
             }
 
-            if (tx.coinbaseBytes) {
-                let cbData = {};
-                let reader = new bitPony.reader(new Buffer(tx.coinbaseBytes, 'hex'));
-                let res = reader.string(0);
-                cbData['authorName'] = res.result.toString();
-                res = reader.string(res.offset);
-                cbData['hardwareName'] = res.result.toString();
-                res = reader.uint32(res.offset);
-                cbData['time'] = res.result;
-                res = reader.var_int(res.offset);
-                cbData['bytes_length'] = res.result;
-                cbData['bytes'] = [];
-                let offset = res.offset;
+            if (tx.cb) {
+                tx.coinbaseData = app.orwell.TX.readCoinbaseBytes(tx.cb);
+            }
 
-                for (let m = 0; m < cbData['bytes_length']; m++) {
-                    res = reader.uint8(offset);
-                    cbData['bytes'].push(parseInt(res.result).toString(16));
-                    offset = res.offset;
-                }
-
-                tx.coinbaseData = cbData;
-            } else if (tx.datascript) {
+            if (tx.ds) {
                 let list = [];
                 let a = [];
 
@@ -664,10 +206,10 @@ module.exports = function (app) {
                 tx.dataScriptContent = [];
                 tx.dataScriptDomain = app.orwell.getDomainAddress(tx.out[0].address);
 
-                if (tx.datascript instanceof Array)
-                    a = tx.datascript;
+                if (tx.ds instanceof Array)
+                    a = tx.ds;
                 else
-                    a = dscript.readArray(tx.datascript);
+                    a = dscript.readArray(tx.ds);
 
                 for (let i in a) {
                     if (returnRawData)
@@ -683,14 +225,23 @@ module.exports = function (app) {
 
             tx.in_amount = tx_in / app.cnf('consensus').satoshi;
             tx.out_amount = tx_out / app.cnf('consensus').satoshi;
-            tx.hex = app.orwell.TX.fromJSON(tx).toHex().toString('hex');
+
+            let tx2 = tx;
+            for (let i in tx2.in) {
+                delete tx2.in[i].writer;
+                delete tx2.in[i].writerAddress;
+                delete tx2.in[i].sign;
+            }
+            let t = app.orwell.TX.fromJSON(tx);
+            tx.hex = t.toHex();
+            tx.fee = t.getFee();
+            tx.size = t.getSize();
 
             return app.rpc.success(tx);
         }
-    });
+    }
 
-    app.rpc.addMethod("address", function (params, cb) {
-
+    app.rpc.handlers.address = function (params, cb) {
         let addr;
         let address = params[0], limit = parseInt(params[1]), offset = parseInt(params[2]);
         if (!Number.isFinite(offset) || isNaN(offset))
@@ -727,10 +278,24 @@ module.exports = function (app) {
             hash160: app.orwell.ADDRESS.getPublicKeyHashByAddress(addr).toString('hex'),
             unspent: app.orwell.utxo.getUTXOList(addr, limit, offset)
         });
+    }
 
-    });
+    app.rpc.handlers.dblist = function (params, cb) {
+        let limit = parseInt(params[0]), offset = parseInt(params[1]);
+        if (!Number.isFinite(offset) || isNaN(offset))
+            offset = 0;
 
-    app.rpc.addMethod("dbinfo", function (params, cb) {
+        if (!limit || !Number.isFinite(limit) || isNaN(limit))
+            limit = 100;
+
+        if (limit > 1000)
+            limit = 1000;
+
+        let arr = app.orwell.getDatabases(limit, offset);
+        return app.rpc.success(arr);
+    }
+
+    app.rpc.handlers.dbinfo = function (params, cb) {
         let db = params[0], dataset = params[1], limit = parseInt(params[2]), offset = parseInt(params[3]);
         if (!Number.isFinite(offset) || isNaN(offset))
             offset = 0;
@@ -766,24 +331,9 @@ module.exports = function (app) {
             cb.apply(null, app.rpc.success(records));
             return -1;
         }
-    });
+    }
 
-    app.rpc.addMethod("dblist", function (params, cb) {
-        let limit = parseInt(params[0]), offset = parseInt(params[1]);
-        if (!Number.isFinite(offset) || isNaN(offset))
-            offset = 0;
-
-        if (!limit || !Number.isFinite(limit) || isNaN(limit))
-            limit = 100;
-
-        if (limit > 1000)
-            limit = 1000;
-
-        let arr = app.orwell.getDatabases(limit, offset);
-        return app.rpc.success(arr);
-    });
-
-    app.rpc.addMethod("dbrecords", function (params, cb) {
+    app.rpc.handlers.records = function (params, cb) {
         let db = params[0], dataset = params[1], limit = parseInt(params[2]), offset = parseInt(params[3]);
 
         if (!Number.isFinite(offset) || isNaN(offset))
@@ -796,24 +346,9 @@ module.exports = function (app) {
             limit = 1000;
 
         return app.rpc.success(app.orwell.getDataSetInfo(db, dataset, limit, offset));
-    });
+    }
 
-    app.rpc.addMethod("peerinfo", function (params, cb) {
-        let peers = app.network.protocol.getNodeList(), peerinfo = {};
-        for (let i in peers) {
-            let d = app.network.nodes.get("data/" + peers[i]);
-            let rinfo = app.network.protocol.getUniqAddress(peers[i]);
-            if (rinfo.remoteAddress == '127.0.0.1')
-                continue;
-
-            d.lastMsg = new Date().getTime() / 1000 - d.lastRecv;
-            peerinfo[rinfo.remoteAddress + "//" + rinfo.port] = d;
-        }
-
-        return app.rpc.success(peerinfo);
-    });
-
-    app.rpc.addMethod("mempoolinfo", function (params, cb) {
+    app.rpc.handlers.mempool = function (params, cb) {
         let list = app.orwell.mempool.getList(), arr = [];
         for (let i in list) {
             let time = app.orwell.mempool.get("time/" + list[i]);
@@ -821,6 +356,406 @@ module.exports = function (app) {
         }
 
         return app.rpc.success(arr);
+    }
+
+    app.rpc.handlers.peers = function (params, cb) {
+        let peers = app.network.protocol.getNodeList(), peerinfo = {};
+        for (let i in peers) {
+            let d = app.network.nodes.get("data/" + peers[i]);
+            /*if (rinfo.remoteAddress == '127.0.0.1')
+                continue;
+            */
+            d.lastMsg = new Date().getTime() / 1000 - d.lastRecv;
+            //peerinfo[rinfo.remoteAddress + "//" + rinfo.port] = d;
+            if (d.nodekey)
+                peerinfo[d.nodekey] = d;
+        }
+
+        return app.rpc.success(peerinfo);
+    }
+
+    app.rpc.handlers.tokenHistory = function (params, cb) {
+        let ticker = params[0], limit = parseInt(params[1]), offset = parseInt(params[2]);
+        if (!Number.isFinite(offset) || isNaN(offset))
+            offset = 0;
+
+        if (!limit || !Number.isFinite(limit) || isNaN(limit))
+            limit = 100;
+
+        if (limit > 1000)
+            limit = 1000;
+
+        return app.rpc.success(app.orwell.getTokenHistory(ticker, limit, offset));
+    }
+
+    app.rpc.handlers.tokenAddressHistory = function (params, cb) {
+        let address = params[0], limit = parseInt(params[1]), offset = parseInt(params[2]);
+
+        if (!app.orwell.ADDRESS.isValidAddress(address))
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'not valid address' + address);
+
+        if (!Number.isFinite(offset) || isNaN(offset))
+            offset = 0;
+
+        if (!limit || !Number.isFinite(limit) || isNaN(limit))
+            limit = 100;
+
+        if (limit > 1000)
+            limit = 1000;
+
+        return app.rpc.success(app.orwell.getAddressTokenHistory(address, limit, offset));
+    }
+
+    app.rpc.handlers.tokenList = (limit, offset) => {
+        if (!Number.isFinite(offset) || isNaN(offset))
+            offset = 0;
+
+        if (!limit || !Number.isFinite(limit) || isNaN(limit))
+            limit = 100;
+
+        if (limit > 1000)
+            limit = 1000;
+
+        return app.rpc.success(app.orwell.getTokenList(limit, offset));
+    }
+
+    app.rpc.handlers.consensus = () => {
+        return app.rpc.success(app.orwell.getConsensus());
+    }
+
+    app.rpc.addMethod("help", function (params, cb) {
+
+        let out = "";
+        let cliname = 'orw';
+
+        function nl() {
+            return "\n";
+        }
+
+        out += nl() + (cliname + " client " + app.getAgentName().name + " " + app.getAgentName().version)
+        out += nl()
+        out += nl() + ("Usage:")
+        out += nl() + (cliname + " [option] <command>\tsend command to " + cliname)
+        out += nl() + (cliname + " <command> help\t help about command")
+        out += nl() + (cliname + " help\t commands list")
+        out += nl()
+        out += nl() + ("Available Commands:")
+        out += nl() + ("> addresses:")
+        out += nl() + (cliname + " validateaddress <address>")
+        out += nl() + (cliname + " exportprivatekey <address>")
+        out += nl() + (cliname + " importprivatekey <privkeyHex> <account name>")
+        out += nl() + (cliname + " address <address>")
+        out += nl()
+        out += nl() + ("> blockchain:")
+        out += nl() + (cliname + " bestblockhash")
+        out += nl() + (cliname + " parseblock <hex>")
+        out += nl() + (cliname + " getinfo")
+        out += nl() + (cliname + " chain <limit> <offset>")
+        out += nl() + (cliname + " block <hash1 ... hashN>")
+        out += nl() + (cliname + " height <index>")
+        out += nl() + (cliname + " tx <hash>")
+        out += nl() + (cliname + " mempoolinfo")
+        out += nl() + (cliname + " reindex")//
+
+        out += nl()
+        out += nl() + ("> control:")
+        out += nl() + (cliname + " help");
+        out += nl() + (cliname + " stop")
+        out += nl()
+        out += nl() + ("> democracy:")
+        out += nl() + (cliname + " democracy.create <type> [paramsjsonarray]")//
+        out += nl() + (cliname + " democracy.info <id>")//
+        out += nl()
+        out += nl() + ("> Network:")
+        out += nl() + (cliname + " getconnectioncount")
+        out += nl() + (cliname + " getnetworkinfo")
+        out += nl() + (cliname + " ping")
+        out += nl() + (cliname + " addnode <host> [port]")//
+        out += nl()
+        out += nl() + ("> Datascript:")
+        out += nl() + (cliname + " decodedatascript <hex> [dbname]");
+        out += nl() + (cliname + " encodedatascript <json_array_of_dscommand> [dbname]");
+        //pack datascript with create command and send tx to network:
+        out += nl() + (cliname + " dbinfo <dbname> [dataset] [limit] [offset]");
+        out += nl() + (cliname + " dblist [limit] [offset]");
+        out += nl() + (cliname + " dbrecords <dbname> [dataset] [limit] [offset]");
+        out += nl() + (cliname + " dbcreate <fromaddress> <toaddress> <dataset> <privileges> [is_private=false]"); //is_private - is writeScript. If true - use 0x55 0x60 (that mean check privileges table), else write for all
+        out += nl() + (cliname + " dbsettings <fromaddress> <toaddress> <dataset> <settings_json>"); //can change only privileges and writeScript in this version.
+        out += nl() + (cliname + " dbwrite <fromaddress> <toaddress> <dataset> <data_json_array>"); //data is array of json_content or json_content. 
+        //work with localdb
+        out += nl() + (cliname + " syncdb <dbname>")//sync db from blockchain to local database
+        out += nl() + (cliname + " cleardb <dbname>")//clear local database
+        out += nl()
+        out += nl() + ("> Keystore:")
+        out += nl() + (cliname + " addpem <path/to/file> <dbname> [datasetname]");//
+        out += nl() + (cliname + " rempem <dbname> [datasetname]");//
+        out += nl() + (cliname + " getpem <dbname> [datasetname]");//
+        //todo: import/export keystore
+
+        out += nl()
+        out += nl() + ("> Wallet:")
+        out += nl() + (cliname + " balance <account_name>")
+        out += nl() + (cliname + " accounthistory <account_name>")
+        out += nl() + (cliname + " listaccounts")
+        out += nl() + (cliname + " exportprivatekey <address>")
+        out += nl() + (cliname + " exportwallet")//
+        out += nl() + (cliname + " importwallet <path/from>")//
+        out += nl() + (cliname + " importprivkey <private key> [account name]")
+
+        out += nl() + (cliname + " getaccount <address>")
+        out += nl() + (cliname + " getaccountaddress <account_name>")
+        out += nl() + (cliname + " getaddressesbyaccount <account_name>")
+        out += nl() + (cliname + " getnewaddress <account_name>")
+        out += nl() + (cliname + " getreceivedbyaccount <account_name> [confirmation=6]")
+        out += nl() + (cliname + " getreceivedbyaddress <address> [confirmation=6]")
+        out += nl() + (cliname + " listlockunspent ")
+        out += nl() + (cliname + " sendfrom <fromaccount> <address> <amount> [datascript]")
+        out += nl() + (cliname + " sendtoaddress <address> <amount> [datascript]")
+
+        out += nl()
+        out += nl() + ("> Tokens:")
+        out += nl() + (cliname + " createtoken <address from> <tokenaddress> <tokenticker> <opts> - opts is json: {\"emission\":\"21000\", \"isStock\":\"false\", \"share\": \"30\", \"title\": \"Token name\"}")
+        out += nl() + (cliname + " createstock <address from> <tokenaddress> <tokenticker> <opts> - opts is json: {\"emission\":\"21000\", \"isStock\":\"false\", \"share\": \"30\", \"title\": \"Token name\"}")
+        out += nl() + (cliname + " sendtoken <ticker> <address from> <address to> <amount>")
+        out += nl() + (cliname + " gettokenbalance <address from> <ticker>")
+        out += nl() + (cliname + " gettokenholders <ticker>")
+        out += nl() + (cliname + " gettokenhistory <address from> <ticker>")
+        out += nl() + (cliname + " paystockholders <ticker> <address payment from> <amount>")
+
+        out += nl()
+        out += nl() + ("> Masternodes:")
+        out += nl() + (cliname + " createmasternode <account name>")
+        out += nl() + (cliname + " getmasternodes")
+
+
+        out += nl()
+        out += nl() + ("> Domains:")
+        out += nl() + (cliname + " createdomain <account name> <domain> <public key>")
+        out += nl() + (cliname + " resolvedomain <domain>")//pubkey
+        out += nl() + (cliname + " resolvepulickey <public key>")//domain
+
+
+        out += nl()
+        out += nl() + ("> Util:")
+        out += nl() + (cliname + " validateaddress <address>");
+        out += nl() + (cliname + " initblockchain");
+
+        return cb.apply(this, app.rpc.success(out));
+    });
+
+
+    app.rpc.addMethod('ping', () => {
+        return app.rpc.success({ pong: 1 })
+    });
+
+    app.rpc.addMethod('stop', () => {
+        //TODO: save process stop
+        process.exit(0);
+    });
+
+    app.rpc.addMethod("validateaddress", function (params, cb) {
+        let address = params[0];
+        let val = false
+
+        try {
+            val = app.orwell.ADDRESS.isValidAddress(address)
+        } catch (e) {//not valid base58 is catched
+            try {
+                if (address.length == 40) {//hash of pubkey
+                    addr = app.orwell.ADDRESS.generateAddressFromAddrHash(addr)
+                    val = true;
+                } else {
+                    addr = app.orwell.ADDRESS.generateAddressFromPublicKey(address);//its hash
+                    val = true;
+                }
+            } catch (e) {
+
+            }
+        }
+
+        return app.rpc.success({ isvalid: val, address: address });
+    });
+
+    app.rpc.addMethod("parseblock", function (params, cb) {
+        return app.rpc.success(app.orwell.BLOCK.fromHEX(params[0]));
+    });
+
+    app.rpc.addMethod("getinfo", function (params, cb) {
+        return app.rpc.success({
+            "version": app.cnf("consensus").version,
+            "protocolversion": app.cnf("consensus").version,
+            "walletversion": app.cnf("agent").version,
+            "balance": app.wallet.getBalance(0),
+            "blocks": app.orwell.blockpool.blockCount(),
+            "timeoffset": 0,
+            "connections": app.network.protocol.getNodeList().length,
+            "proxy": "",
+            "testnet": app.cnf('network') == 'testnet',
+            "net": app.cnf('network'),
+            "keypoololdest": app.orwell.mempool.getOldest(),
+            "keypoolsize": app.orwell.mempool.getCount(),
+            "paytxfee": app.wallet.getFee(),//wallet.fee,
+            "datasetfee": 0
+        }
+        );
+    });
+
+    app.rpc.addMethod("sendtoaddress", function (params, cb) {
+        let address = params[0];
+        let amount = params[1];
+        let dsHEX = params[2] ? params[2] : '';
+        let result = app.wallet.send(0, address, amount * app.cnf('consensus').satoshi, dsHEX);
+
+        if (result.status) {
+            return app.rpc.success(result.hash);
+        } else
+            return app.rpc.error(app.rpc.INVALID_RESULT, result.error);
+    });
+
+    app.rpc.addMethod("sendfrom", function (params, cb) {
+        let account_id = params[0], address = params[1], amount = params[2], datascriptHEX = params[3];
+        let acc = app.orwell.resolveWalletAccount(account_id);
+        let to = app.orwell.resolveAddress(address);
+
+
+        if (!acc || !acc.address)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'account not exist');
+
+        if (!app.orwell.ADDRESS.isValidAddress(to))
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'address is not valid ' + to);
+
+        if (amount <= 0)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'amount is not valid');
+
+        app.wallet.sendFromAddress(acc.address, to, amount * app.cnf('consensus').satoshi, datascriptHEX)
+            .then((result) => {
+                cb(result.hash);
+            })
+            .catch((err) => {
+                cb(null, err);
+            })
+
+        return -1;
+    });
+
+    app.rpc.addMethod("listaccounts", function (params, cb) {
+
+        let list = app.wallet.getAccounts();
+        for (let i in list) {
+            list[i].balance = app.wallet.getBalance(list[i].name);
+            list[i].balancehr = app.wallet.getBalance(list[i].name) / app.cnf("consensus").satoshi;
+        }
+
+        return app.rpc.success(list);
+    });
+
+    app.rpc.addMethod("accounthistory", function (params, cb) {
+        let id = params[0];
+
+        if (!id)
+            id = 0;
+
+        let obj = app.wallet.getAccount(id);
+        return app.rpc.success(obj.address);
+    });
+
+    app.rpc.addMethod("accountaddress", function (params, cb) {
+        let id = params[0];
+
+        if (!id)
+            id = 0;
+
+        let obj = app.wallet.getAccount(id);
+        return app.rpc.success(obj.address);
+    });
+
+    app.rpc.addMethod("exportprivatekey", function (params, cb) {
+        let addr = params[0];
+
+        if (!addr || !app.orwell.ADDRESS.isValidAddress(addr))
+            return app.rpc.error(app.rpc.INVALID_PARAMS, "need valid address to dump private key");
+
+        let obj = app.wallet.findAccountByAddr(addr);
+
+        if (!obj || !obj.privateKey)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, "need valid and exist address to dump private key");
+
+        let key = obj.privateKey;
+        let pub = obj.publicKey;
+
+        return app.rpc.success({ address: addr, publicKey: pub, privateKey: key });
+    });
+
+    app.rpc.addMethod("importprivatekey", function (params, cb) {
+        let privateKey = params[0];
+        let accountName = params[1] || "";
+        let obj = app.wallet.importPrivateKey(privateKey, accountName);
+
+        if (!obj || !obj.privateKey)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, "need valid and exist address to dump private key");
+
+        let addr = obj.address;
+        let pub = obj.publicKey;
+
+        return app.rpc.success({ name: obj.hash, address: addr, publicKey: pub });
+    });
+
+    app.rpc.addMethod("balance", function (params, cb) {
+        let id = params[0];
+        let balance = app.wallet.getBalance(id);
+        return app.rpc.success({ balance: balance / app.cnf('consensus').satoshi + 0 });
+    });
+
+    app.rpc.addMethod("chain", function (params, cb) {
+        return app.rpc.handlers.chain(params, cb);
+    });
+
+    app.rpc.addMethod("bestblockhash", function (params, cb) {
+        let info = app.orwell.index.getTop();
+
+        if (!info.id)
+            info = { hash: app.orwell.GENESIS.hash, height: 0 };
+        else
+            info.hash = info.id;
+
+        return app.rpc.success(info);
+    });
+
+    app.rpc.addMethod("height", (params, cb) => {
+        return app.rpc.handlers.block('height', params, cb);
+    });
+
+    app.rpc.addMethod("block", function (params, cb) {
+        return app.rpc.handlers.block('block', params, cb);
+    });
+
+
+    app.rpc.addMethod("tx", function (params, cb) {
+        return app.rpc.handlers.tx(params, cb);
+    });
+
+    app.rpc.addMethod("address", function (params, cb) {
+        return app.rpc.handlers.address(params, cb);
+    });
+
+    app.rpc.addMethod("dbinfo", function (params, cb) {
+        return app.rpc.handlers.dbinfo(params, cb);
+    });
+
+    app.rpc.addMethod("dblist", function (params, cb) {
+        return app.rpc.handlers.dblist(params, cb);
+    });
+
+    app.rpc.addMethod("dbrecords", function (params, cb) {
+        return app.rpc.handlers.records(params, cb);
+    });
+
+    app.rpc.addMethod("peerinfo", function (params, cb) {
+        return app.rpc.handlers.peers(params, cb);
+    });
+
+    app.rpc.addMethod("mempoolinfo", function (params, cb) {
+        return app.rpc.handlers.mempool(params, cb);
     });
 
     //datascript
@@ -856,9 +791,9 @@ module.exports = function (app) {
         app.orwell.createDb(acc, addressto, datasetname, privileges, privateWriting)
             .then((result, error) => {
                 if (result) {
-                    return app.rpc.success(result);
+                    cb(result);
                 } else {
-                    return app.rpc.error(error.code, error.message);
+                    cb(null, error.message);
                 }
             })
 
@@ -899,13 +834,16 @@ module.exports = function (app) {
         let hex = e.toHEX();
         hex = dscript.writeArray([hex]);
 
-        let result = app.wallet.sendFromAddress(acc.address, addressTo, 0, hex);
+        app.wallet.sendFromAddress(acc.address, addressTo, 0, hex)
+            .then((result, error) => {
+                if (result) {
+                    cb(result);
+                } else {
+                    cb(null, error.message);
+                }
+            })
 
-        if (result.status) {
-            return app.rpc.success(result.hash);
-        } else
-            return app.rpc.error(app.rpc.INVALID_RESULT, result);
-
+        return -1;
     });
 
     app.rpc.addMethod("dbwrite", (params, cb) => {
@@ -947,13 +885,66 @@ module.exports = function (app) {
 
         app.orwell.writeDb(acc, addressto, dataset, content)
             .then((result, error) => {
-                cb(result, error);
+                cb(result);
+            })
+            .catch((e) => {
+                cb(null, e);
             })
         return -1;
 
     });
 
     app.rpc.addMethod("createtoken", (params, cb) => {
+
+        let addressfrom = params[0], tokenaddress = params[1], tokenticker = params[2], opts = params[3];
+        if (!tokenaddress)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'tokenaddress is required');
+
+        if (!tokenticker)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'tokenaddress is required');
+
+        if (app.orwell.dsIndex.get("token/" + tokenticker)) {
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'this token ticker already exist');
+        }
+
+        if (app.orwell.dsIndex.get("token/address/" + tokenaddress)) {
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'token on this address already exist');
+        }
+
+        let acc = app.orwell.resolveWalletAccount(addressfrom);
+        if (!acc)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'address from is not valid account or address. Must exists in your wallet.');
+
+        let addrto = app.orwell.resolveWalletAccount(tokenaddress);
+        if (!app.orwell.ADDRESS.isValidAddress(addrto.address))
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'Tokenaddress is not valid account or address. Must exists in your wallet.');
+        tokenaddress = addrto;
+
+        if (!opts)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'opts is required');
+
+        try {
+            content = JSON.parse(opts);
+        } catch (e) {
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'opts is required');
+        }
+
+        if (!content.emission)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'emission option is required');
+
+        app.orwell.createToken(acc, tokenaddress, tokenticker, content)
+            .then((hashes) => {
+                cb(hashes);
+            })
+            .catch(e => {
+                cb(null, e);
+            })
+
+        return -1;
+
+    });
+
+    app.rpc.addMethod("createstock", (params, cb) => {
 
         let addressfrom = params[0], tokenaddress = params[1], tokenticker = params[2], opts = params[3];
 
@@ -976,7 +967,7 @@ module.exports = function (app) {
             return app.rpc.error(app.rpc.INVALID_PARAMS, 'address from is not valid account or address. Must exists in your wallet.');
 
         let addrto = app.orwell.resolveWalletAccount(tokenaddress);
-        if (!app.orwell.ADDRESS.isValidAddress(addrto))
+        if (!app.orwell.ADDRESS.isValidAddress(addrto.address))
             return app.rpc.error(app.rpc.INVALID_PARAMS, 'Tokenaddress is not valid account or address. Must exists in your wallet.');
         tokenaddress = addrto;
 
@@ -992,40 +983,364 @@ module.exports = function (app) {
         if (!content.emission)
             return app.rpc.error(app.rpc.INVALID_PARAMS, 'emission option is required');
 
+        let hashes = [];
         app.orwell.OVM.syncdb(app.orwell.getSystemDb())
             .then(() => {
-                return app.orwell.writeDb(acc, app.orwell.getSystemAddress(), 'tokens', {
+                return app.orwell.writeDb(acc, app.orwell.getSystemAddress(), 'tokens', [{
                     ticker: tokenticker,
                     address: tokenaddress.address,
-                    emission: opts.emission,
-                    isStock: opts.isStock || false,
-                    title: opts.title || tokenticker
-                })
+                    emission: content.emission,
+                    isStock: true,
+                    title: content.title || tokenticker,
+                    share: content.share > 0 || content.share < 1 ? content.share : 0.3,//30% of income payment used for payments stockholders
+                }])
 
             })
             .then((result, error) => {
                 if (!result) return app.rpc.error(app.rpc.INVALID_PARAMS, error.message);
+                hashes.push(result);
                 return app.orwell.createDb(acc, tokenaddress.address, 'token')
             })
             .then((result, error) => {
                 if (!result) return app.rpc.error(app.rpc.INVALID_PARAMS, error.message);
-                return app.orwell.writeDb(acc, tokenaddress.address, 'token', {//initial pay
+                hashes.push(result);
+                return app.orwell.writeDb(acc, tokenaddress.address, 'token', [{//initial pay
                     from: tokenaddress.address,
                     to: tokenaddress.address,
-                    amount: opts.emission
-                })
+                    amount: content.emission
+                }])
 
+            })
+            .then((result, error) => {
+                if (!result) return app.rpc.error(app.rpc.INVALID_PARAMS, error.message);
+                hashes.push(result);
+                cb(hashes);
+            })
+            .catch((err) => {
+                cb(null, err);
             })
 
         return -1;
 
     });
 
+    app.rpc.addMethod("sendtoken", (params, cb) => {
+
+        let ticker = params[0], addressfrom = params[1], addressto = params[2], amount = params[3];
+
+        if (!addressfrom)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'addressfrom is required');
+
+        if (!addressto)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'addressto is required');
+
+        if (!app.orwell.dsIndex.get("token/" + ticker)) {
+            return app.rpc.error(app.rpc.INVALID_PARAMS, ticker + ' is not valid token ticker');
+        }
+
+        let acc = app.orwell.resolveWalletAccount(addressfrom);
+        if (!acc)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'address from is not valid account or address. Must exists in your wallet.');
+
+        let addrto = app.orwell.resolveAddress(addressto);
+
+        if (!app.orwell.ADDRESS.isValidAddress(addrto))
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'address to is not valid account or address.');
+
+        app.orwell.sendToken(ticker, acc, addrto, amount)
+            .then((hash) => {
+                cb(hash);
+            })
+            .catch((e) => {
+                cb(null, e);
+            })
+
+        return -1;
+    });
+
+    app.rpc.addMethod("gettokenbalance", (params, cb) => {
+
+        let address = params[0], token = params[1];
+
+        if (!address)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'address is required');
+
+
+        let acc = app.orwell.resolveWalletAccount(address);
+        if (!acc)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'address from is not valid account or address. Must exists in your wallet.');
+
+        if (token) {
+
+            let addr = app.orwell.dsIndex.get("token/" + token);
+            if (!addr) {
+                return app.rpc.error(app.rpc.INVALID_PARAMS, token + ' is not valid token ticker');
+            }
+
+            return app.rpc.success(app.orwell.getTokenAddressAmount(token, acc.address));
+
+        }
+
+        return app.rpc.success(app.orwell.getTokensAddressAmount(acc.address));
+    });
+
+    app.rpc.addMethod("gettokenholders", (params, cb) => {
+
+        let token = params[0];
+
+        if (!token)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, token + ' is not valid token ticker');
+
+        return app.rpc.success(app.orwell.dsIndex.getTokenHolders(token));
+    });
+
+    app.rpc.addMethod("gettokenhistory", (params, cb) => {
+
+        let address = params[0], token = params[1];
+
+        if (!address)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'address is required');
+
+
+        let acc = app.orwell.resolveWalletAccount(address);
+        if (!acc)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'address from is not valid account or address. Must exists in your wallet.');
+
+        if (token) {
+
+            let addr = app.orwell.dsIndex.get("token/" + token);
+            if (!addr) {
+                return app.rpc.error(app.rpc.INVALID_PARAMS, token + ' is not valid token ticker');
+            }
+
+            return app.rpc.success(app.orwell.getTokenAddressHistory(token, acc.address));
+
+        }
+
+        return app.rpc.success(app.orwell.getTokensAddressHistory(acc.address));
+    });
+
+    app.rpc.addMethod("paystockholders", (params, cb) => {//create dividends payment
+
+        let ticker = params[0], addresspaymentfrom = params[1], amount = params[2];
+
+        if (!addresspaymentfrom)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'addresspaymentfrom is required');
+
+        if (!app.orwell.dsIndex.get("token/" + ticker)) {
+            return app.rpc.error(app.rpc.INVALID_PARAMS, ticker + ' is not valid token ticker');
+        }
+
+        let acc = app.orwell.resolveWalletAccount(addresspaymentfrom);
+        if (!acc)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'address from is not valid account or address. Must exists in your wallet.');
+
+        let addressBalance = app.orwell.getAddressBalance(acc.address);
+        if (amount > addressBalance || amount <= 0)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'amount must be at address balance');
+
+        app.orwell.payStockHolders(ticker, acc, amount)
+            .then((hash) => {
+                cb(hash);
+            })
+            .catch((e) => {
+                cb(null, e);
+            })
+
+        return -1;
+    });
+
+    app.rpc.addMethod("createmasternode", (params, cb) => {
+
+        let masternodeacc = params[0];
+
+        if (!masternodeacc)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'masternode account is required');
+
+        let acc = app.orwell.resolveWalletAccount(masternodeacc);
+        if (!acc)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'masternode account is not valid account or address. Must exists in your wallet.');
+
+        let addressBalance = app.orwell.getAddressBalance(acc.address);
+        if (addressBalance < app.cnf('consensus').masternodeAmount)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'amount on account must be at least ' + app.cnf('consensus').masternodeAmount + " orwl");
+
+        app.orwell.addMasternode(acc)
+            .then((hash) => {
+                cb(hash);
+            })
+            .catch((e) => {
+                cb(null, e);
+            })
+
+        return -1;
+    });
+
+    app.rpc.addMethod("getmasternodes", (params, cb) => {
+
+        return app.rpc.success(app.orwell.dsIndex.getMasternodes());
+    });
+
+    app.rpc.addMethod("createdomain", (params, cb) => {
+
+        let acc_id = params[0], domain = params[1], pubkey = params[2];
+
+        if (!acc_id)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'account is required');
+
+        if (!domain)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'domain is required');
+
+        if (!pubkey)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'pubkey is required');
+
+        let acc = app.orwell.resolveWalletAccount(acc_id);
+        if (!acc)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'account is not valid account or address. Must exists in your wallet.');
+
+        //if (!app.orwell.ADDRESS.isValidAddress(address))
+        //   return app.rpc.error(app.rpc.INVALID_PARAMS, 'address is not valid');
+
+        if (!app.orwell.ADDRESS.isValidDomain(domain))
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'domain is not valid');
+
+        app.orwell.createDomain(acc, domain, pubkey)
+            .then((hash) => {
+                cb(hash);
+            })
+            .catch((e) => {
+                cb(null, e);
+            })
+
+        return -1;
+    });
+
+    //consensus masternode fix, only if >=3, else - all
+    //resolveDomain
+    //findDomainByAddress
+
+    //resync indexes
     app.rpc.addMethod("initblockchain", (params, cb) => {
         //create system db domains 
         //create system db tokens
         //create system db masternodes
-
+        let acc = params[0];
+        app.orwell.deploySystemDb(app.wallet.getAccount(acc || "0"))
+            .then((hashes) => {
+                cb(hashes);
+            })
+            .catch((e) => {
+                cb(null, e);
+            })
     });
+
+    app.rpc.addMethod("resolvedomain", (params, cb) => {
+        return app.rpc.success(app.orwell.resolveDomain(params[0]));
+    });
+
+    app.rpc.addMethod("resolvepublickey", (params, cb) => {
+        return app.rpc.success(app.orwell.resolveDomainName(params[0]));
+    });
+
+
+    app.rpc.addMethod("decodedatascript", (params, cb) => {
+
+        const dscript = require('orwelldb').datascript;
+        let list = [];
+        let arr = dscript.readArray(params[0]);
+        for (let k in arr) {
+            let data = new dscript(arr[k]).toJSON();
+            list.push(data);
+        }
+
+        return app.rpc.success(list);
+    })
+
+    app.rpc.addMethod("encodedatascript", (params, cb) => {
+        let data = JSON.parse(params[0]);
+        let list = [];
+        for (let i in data) {
+            let e3 = new dscript(data[i]);
+            list.push(e3.toHEX());
+        }
+
+        return app.rpc.success(dscript.writeArray(list));
+    })
+
+    app.rpc.addMethod("getconnectioncount", (params, cb) => {
+        return app.rpc.success(this.nodes.get("connections").length)
+    });
+
+    app.rpc.addMethod("getnetworkinfo", (params, cb) => {
+        return app.rpc.success({
+            mempool: app.orwell.mempool.getCount(),
+            blocks: app.orwell.blockpool.blockCount(),
+            height: app.orwell.index.get('top').height,
+            last_hash: app.orwell.index.get('top').id,
+        })
+    })
+
+    app.rpc.addMethod("addnode", (params, cb) => {
+        app.network.protocol.initNode(params[0].split(":").join("//"));
+        return app.rpc.success(true);
+    })
+
+    app.rpc.addMethod("cleardb", (params, cb) => {
+        let dbname = params[0];
+
+        if (!dbname)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'dbname is required');
+
+        try {
+            dbname = app.orwell.ADDRESS.getPublicKeyHashByAddress(dbname).toString('hex');
+        } catch (e) {//not valid base58 is catched
+
+        }
+
+        let path = app.cnf('orwelldb').path;
+        path = path.replace("%home%", app.config.getLocalHomePath())
+
+        fs.unlinkSync(path + "/" + dbname);
+        return app.rpc.success(true);
+    })
+
+    app.rpc.addMethod("syncdb", (params, cb) => {
+
+        let dbname = params[0];
+        let addr = false;
+
+        if (!dbname)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'dbname is required');
+
+        try {
+            let dbname_ = dbname;
+            dbname = app.orwell.ADDRESS.getPublicKeyHashByAddress(dbname).toString('hex');
+            addr = dbname_
+        } catch (e) {//not valid base58 is catched
+            addr = app.orwell.ADDRESS.generateAddressFromPublicKey(dbname);
+        }
+
+        app.orwell.OVM.syncdb(dbname)
+            .then(() => {
+                cb(null, { status: true, "address": addr, "dbname": dbname });
+            })
+            .catch(e => {
+                console.log(e);
+                cb(e);
+            })
+
+        return -1;
+    })
+
+    app.rpc.addMethod("reindex", (params, cb) => {
+
+        app.orwell.reindexLocal()
+            .then(() => {
+                cb(null, { status: true, "top": app.orwell.index.getTop() });
+            })
+
+        return -1;
+    })
+
 
 }

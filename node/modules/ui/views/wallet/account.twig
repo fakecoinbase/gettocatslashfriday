@@ -1,0 +1,81 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+    <script type='text/javascript'>
+
+        function spoiler(e) {
+            if ($(e).data('showed') == '0'){
+                $(e).data('showed', 1); 
+                $(e).html($(e).data('key'));
+            } else {
+                $(e).data('showed', '0');
+                $(e).html("<a href='#'>Show key (double click)</a>");
+            }
+        }
+    
+    </script>
+
+	<h2>Info</h2>
+
+    <table class="table table-bordered table-striped table-responsive">
+        <tr>
+            <th>Account name</th>
+            <th>{{account.hash}}</th>
+        </tr>
+        <tr>
+            <td>Address</td>
+            <td>{{account.address}}</td>
+        </tr>
+        <tr>
+            <td>Public key</td>
+            <td>{{account.publicKey}}</td>
+        </tr>
+        <tr>
+            <td>Private key</td>
+            <td style='cursor:pointer' ondblclick='return spoiler(this);' class='data' data-key='{{account.privateKey}}' data-showed='0'><a href='#'>Show key (double click)</a></td>
+        </tr>
+        
+    </table>
+
+	<h2>History</h2>
+
+	<table class='table table-bordered table-striped table-responsive'>
+		<tr>
+			<th>Height</th>
+			<th>From</th>
+			<th>To</th>
+			<th>Amount</th>
+		</tr>
+
+		{% for h in utxoIndex.list %}
+			<tr class='' style='{% if h.spentHash %}font-color: red{% endif %}'>
+				<td>
+					<a href='/explorer/height/{{h.height}}'>{{h.height}}</a>
+				</td>
+				<td>
+					{%if h.from|length == 0%}
+						coinbase
+					{% else %}
+						{% for a in h.from %}
+							<div>
+								<a href='/explorer/address/{{a}}'>{{a}}</a>
+							</div>
+						{% endfor %}
+					{% endif %}
+				</td>
+				<td>
+					{% for t in h.to %}
+						<div>
+							<a href='/explorer/address/{{t}}'>{{t}}</a>
+						</div>
+					{% endfor %}
+				</td>
+				<td>{{h.amount/100000000}}</td>
+			</tr>
+		{% endfor %}
+
+	</table>
+
+
+{% endblock %}

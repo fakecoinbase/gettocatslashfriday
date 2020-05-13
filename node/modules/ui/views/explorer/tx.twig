@@ -1,0 +1,313 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+<script type='text/javascript'>
+
+	window.onload = function () {
+
+
+
+
+
+$('#rawdatatab a').click(function (e) {
+
+
+
+
+
+e.preventDefault();
+$(".tab-pane").removeClass('active show')
+$("#" + $(this).data('tab')).addClass('active show')
+$(this).tab('show')
+
+
+
+
+
+})
+
+
+
+
+
+}
+</script>
+
+{% if txs|length > 1 %}
+	<h2>Set of tx info ({{id+1}}/{{txs|length}})</h2>
+	<nav class="nav nav-pills nav-fill">
+		{% for txHash in txs %}
+			<a class="nav-item nav-link {% if id == loop.index-1 %}active{% endif %}" href="?id={{loop.index-1}}">{{trimTx(txHash)}}</a>
+		{% endfor %}
+	</nav>
+{% endif %}
+
+<div class="tx-info">
+	<h3>Tx info</h3>
+	<table class="table table-bordered table-striped table-responsive">
+		<tr>
+			<th>Name</th>
+			<th>Value</th>
+		</tr>
+		<tr>
+			<td>Hash</td>
+			<td>{{tx.hash}}</td>
+		</tr>
+		<tr>
+			<td>Version</td>
+			<td>{{tx.v}}</td>
+		</tr>
+		<tr>
+			<td>Size</td>
+			<td>{{tx.size/1024}}</td>
+		</tr>
+
+		{% if tx.fromBlock %}
+			<tr>
+				<td>Block</td>
+				<td>
+					<a href='/explorer/block/{{tx.fromBlock}}'>{{tx.fromBlock}}</a>
+					tx[{{tx.fromIndex}}]
+				</td>
+			</tr>
+		{% else %}
+			<tr>
+				<td>Block</td>
+				<td>
+					<b>Not in blockchain now (recived from memory pool)</b>
+				</td>
+			</tr>
+		{% endif %}
+
+		<tr>
+			<td>Confirmation</td>
+			<td>{{tx.confirmation}}</td>
+		</tr>
+
+		<tr>
+			<td>Common input</td>
+			<td>{{tx.in_amount}}</td>
+		</tr>
+
+		<tr>
+			<td>Common output</td>
+			<td>{{tx.out_amount}}</td>
+		</tr>
+
+		<tr>
+			<td>Fee</td>
+			<td>{{tx.fee/100000000}}</td>
+		</tr>
+
+		{% if tx.cb%}
+			{% if tx.coinbaseData.authorName%}
+				<tr>
+					<td>Coinbase author</td>
+					<td>{{ tx.coinbaseData.authorName}}</td>
+				</tr>
+			{% endif %}
+
+
+			{% if tx.coinbaseData.hardwareName%}
+				<tr>
+					<td>Coinbase hardware/software</td>
+					<td>{{ tx.coinbaseData.hardwareName}}</td>
+				</tr>
+			{% endif %}
+
+			{% if tx.coinbaseData.time%}
+				<tr>
+					<td>Coinbase date</td>
+					<td>
+						{{tx.coinbaseData.time|durationFromTime}}
+						ago /
+						{{tx.coinbaseData.time|date}}
+					</td>
+				</tr>
+			{% endif %}
+
+			{% if tx.coinbaseData.bytes %}
+				<tr>
+					<td>Coinbase signal flags</td>
+					<td>
+						<table class="table table-bordered">
+							<tr>
+								{% set k = 0 %}
+								{% for i in tx.coinbaseData.bytes %}
+									<td>{{k}}</td>
+									{% set k = k+1 %}
+								{% endfor %}
+							</tr>
+							<tr>
+								{% for i in tx.coinbaseData.bytes %}
+									<td>{{i}}</td>
+								{% endfor %}
+							</tr>
+						</table>
+					</td>
+				</tr>
+			{% endif %}
+		{% endif %}
+
+	</table>
+
+	<h3>In / Out</h3>
+	<table class="table table-bordered txlist table-responsive">
+		<tr>
+			<th>Tx</th>
+			<th class='text-center'>In</th>
+			<th class='text-center'>Out</th>
+			<th class='text-center'>Fee</th>
+			<th class='text-center'>Size</th>
+		</tr>
+
+		<tr class=''>
+
+
+			<td>
+				<a name='{{tx.hash}}'></a>
+				<a href="/explorer/tx/{{tx.hash}}">{{tx.hash}}</a>
+			</td>
+			<td class='text-center'>{{tx.in_amount}}</td>
+			<td class='text-center'>{{tx.out_amount}}</td>
+			<td class='text-center'>{{tx.fee/100000000}}</td>
+			<td class='text-center'>{{tx.size/1024}}</td>
+
+		</tr>
+
+		<tr class='tx-even'>
+			<td colspan="5">
+				<div class="row">
+
+					<div class="col text-center">
+
+						{% if tx.cb%}
+							<a href='/explorer/block/{{tx.fromBlock}}#coinbase'>coinbase</a>
+						{% else %}
+							{% for txin in tx.in%}
+								<div class='row'>
+									<div class='col-sm-8'>
+										<a href='/explorer/address/{{txin.writerAddress}}'>{{txin.writerAddress}}</a>
+									</div>
+									<div class='col-sm-4'>
+										<a href='/explorer/tx/{{txin.hash}}?out={{txin.index}}'>{{trimTx(txin.hash)}}
+											... out
+											<{{txin.index}}></a>
+										</div>
+									</div>
+								{% endfor %}
+							{% endif %}
+
+						</div>
+						<div class='col-sm-1 col-xs-2'>
+							<i class='fa fa-arrow-right fa-2x'></i>
+						</div>
+						<div class="col text-center">
+
+							{% set k = 0 %}
+							{% for out in tx.out %}
+								<a name='{{tx.hash}}-{{k}}'></a>
+								{% set k = k+1 %}
+								<div class='row'>
+									<div class='col-sm-8'>
+										<a href='/explorer/address/{{out.address}}'>{{out.address}}</a>
+									</div>
+									<div class='col-sm-4'>
+										{{out.amount/100000000}}
+									</div>
+								</div>
+							{% endfor %}
+
+						</div>
+						<div class="w-100"></div>
+
+					</div>
+				</td>
+			</td>
+		</tr>
+
+	</table>
+
+	{% if tx.ds %}
+		<h3>Datascript</h3>
+		<table class='table table-bordered table-hover table-responsive'>
+
+			<tr>
+				<td>Db</td>
+				<td>Writer</td>
+				<td>Dataset</td>
+			</tr>
+			{% set i = 0%}
+			{% for d in tx.dataScriptContent %}
+				<tr class='{% if i%2 == 0%}tx-even{% endif %}'>
+					{% set i = i+1 %}
+					<td>
+						{% if tx.dataScriptDomain %}
+							<a href='/explorer/address/{{tx.out[0].address}}'>{{tx.dataScriptDomain}}</a>
+						{% else %}
+							<a href='/explorer/address/{{tx.out[0].address}}'>{{tx.out[0].address}}</a>
+						{% endif %}
+						<br/>
+						<a href='#' onclick='$(".content{{i}}").toggleClass("hide"); return false;'>Show  datascript content</a>
+					</td>
+					<td>
+						<a title='{{tx.s[0][1]}}' href='/explorer/address/{{tx.s[0][1]}}'>{{trimTx(tx.s[0][1])}}</a>
+					</td>
+					<td>
+						{{d.dataset}}<br/>
+						<span class='text-muted'>{{d.operator}}</span>
+					</td>
+				</tr>
+				<tr class='content{{i}} hide'>
+					<td style='overflow-x: overlay' colspan="3" class='{% if i%2 == 0%}tx-even{% endif %}'>
+						{% if d.content %}
+							<pre><?php echo htmlentities(json_encode($d['content'], JSON_PRETTY_PRINT)) ?> {{d.content|json}}</pre>
+						{% else %}
+							[
+							{% if d.algorithm %}
+								{{d.algorithm}}
+							{% else %}
+								rsa
+							{% endif %}
+							encryptedcontent ]</td>
+					{% endif %}
+				</tr>
+			</td>
+		</tr>
+	{% endfor %}
+</table>{% endif %}<h3>Rawdata</h3><nav id='rawdatatab' class="nav nav-pills nav-fill" role="tablist">
+<a data-tab='wr' class="nav-item nav-link active" role="tab" href="#">Writers(PublicKeys)</a>
+<a data-tab='sig' class="nav-item nav-link" role="tab" href="#">Signatures</a>
+<a data-tab='ds' class="nav-item nav-link" role="tab" href="#">Datascript</a>
+<a data-tab='tx' class="nav-item nav-link" role="tab" href="#">Txhex</a>
+{% if tx.cb %}
+	<a data-tab='coinbase' class="nav-item nav-link" role="tab" href="#">Coinbasebyteshex</a>
+{% endif %}</nav><div class='pad'>
+<div class="tab-content">
+	<div class="tab-pane fade show active" id="wr" role="tabpanel" aria-labelledby="home-tab">
+		{% for txin in tx.s %}
+			<pre>{{txin[1]}}</pre>
+		{% endfor %}
+	</div>
+	<div class="tab-pane fade" id="sig" role="tabpanel" aria-labelledby="profile-tab">
+		{% for txin in tx.s %}
+			<textarea readonly="" class='form-control' rows='10'>{{txin[0]}}</textarea>
+		{% endfor %}
+	</div>
+	<div class="tab-pane fade" id="ds" role="tabpanel" aria-labelledby="dropdown2-tab">
+		<h5>Datascript array</h5>
+		<textarea readonly="" class='form-control' rows='10'>{{tx.ds}}</textarea>
+
+		{% for d in tx.dslist%}
+			<textarea readonly="" class='form-control' rows='10'>{{d}}</textarea>
+		{% endfor %}
+	</div>
+	<div class="tab-pane fade" id="tx" role="tabpanel" aria-labelledby="dropdown2-tab">
+		<textarea readonly="" class='form-control' rows='10'>{{tx.hex}}</textarea>
+	</div>
+	{% if tx.cb %}
+		<div class="tab-pane fade" id="coinbase" role="tabpanel" aria-labelledby="dropdown2-tab">
+			<textarea readonly="" class='form-control' rows='10'>{{tx.cb}}</textarea>
+		</div>
+	{% endif %}
+</div></div></div>{% endblock %}

@@ -1,5 +1,5 @@
 let DAPP = require("./node/index");
-let cnf = require('./config.orwell.json');
+let cnf = require('./config.json');
 let cli_cnf = cnf[cnf.network].rpc.client;
 DAPP.cli(cli_cnf, function (status, res) {
     if (status) {

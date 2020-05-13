@@ -1,3 +1,5 @@
+const bitowl = require('bitowl');
+
 module.exports = function (app) {
 
     app.on("handler.version", function (message, connectionInfo, selfMessage) {
@@ -194,10 +196,6 @@ module.exports = function (app) {
         delete d.startPing;
         app.network.nodes.set(key, d)
 
-    });
-
-    app.on("app.state.latest", function (newState) {
-        console.log('new state', newState)
     });
 
     app.on("app.state", function (data) {
@@ -443,7 +441,6 @@ module.exports = function (app) {
             if (selfMessage)
                 return false;
 
-
             try {
                 let height = app.orwell.getBlockHeight(message.prev) + 1;
                 message.height = height;
@@ -478,36 +475,41 @@ module.exports = function (app) {
         //    return false;
         let errcode = '', errmsg = '';
         let invalid = false;
-        try {
-            if (app.orwell.addToMemPool(message, app.getSyncState() == 'active' ? 'mempool' : 'sync', connectionInfo)) {
+
+        app.orwell.addToMemPool(message, app.getSyncState() == 'active' ? 'mempool' : 'sync', connectionInfo)
+            .then(() => {
                 //emit for all
                 if (app.getSyncState() == 'active')
                     app.emit("app.chain.mempooltx", { tx: message });
 
                 if (app.getSyncState() == 'active')
                     app.orwell.sendTx(message);
-            } else
+            })
+            .catch((message) => {
+                console.log('tx error', message);
+                errcode = message[1];
                 invalid = true;
-        } catch (e) {
-            console.log(e);
-            errcode = e.code;
-            invalid = true;
-            errmsg = e.message;
-            app.debug('error', 'orwell', 'transaction error: ' + errcode, errmsg)
-        }
+                errmsg = message[0] + message[1];
+                app.debug('error', 'orwell', 'transaction error: ' + errcode, errmsg)
+            })
+            .finally(() => {
+                app.emit("app.orwell.tx"+message.hash, !invalid, message, errcode, errmsg);
 
-        if (invalid && app.getSyncState() == 'active') {
-            if (errcode != 'alreadyexist') {
-                if (errcode)
-                    app.debug('error', 'orwell', 'transaction is rejected: ' + errcode, errmsg);
-                if (!errcode)
-                    app.network.protocol.sendOne(connectionInfo, 'reject', {
-                        type: 'tx',
-                        hash: message.hash,
-                        code: errcode,
-                    });
-            }
-        }
+                if (invalid && app.getSyncState() == 'active') {
+                    if (errcode != 'alreadyexist') {
+                        if (errcode)
+                            app.debug('error', 'orwell', 'transaction is rejected: ' + errcode, errmsg);
+                        if (!errcode)
+                            app.network.protocol.sendOne(connectionInfo, 'reject', {
+                                type: 'tx',
+                                hash: message.hash,
+                                code: errcode,
+                            });
+                    }
+                }
+
+            })
+
     });
 
 
@@ -530,6 +532,15 @@ module.exports = function (app) {
         });
 
     });
+
+    app.on("handler.dappreq", (message, connectionInfo, selfMessage, sign)=>{
+        
+        app.dapps.handleRequest(message);
+    })
+
+    app.on("handler.dappres", (message, connectionInfo, selfMessage, sign)=>{
+        app.dapps.handleResponse(message);
+    })
 
     app.on("app.network.inited", function () {
 

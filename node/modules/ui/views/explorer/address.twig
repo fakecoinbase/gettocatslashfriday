@@ -1,0 +1,152 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+	<ul class="nav nav-pills nav-fill">
+		<li class="nav-item">
+			<a class="nav-link active" href="/explorer/address/{{address.address}}">Common info</a>
+		</li>
+		<li class="nav-item">
+			<a class="nav-link" href="/explorer/db/{{address.hash160}}">Database info</a>
+		</li>
+		<li class="nav-item">
+			<a class="nav-link" href="/explorer/tokens/{{address.address}}">Tokens info</a>
+		</li>
+	</ul>
+
+	<div class="tx-info">
+		<h3>Address info</h3>
+		<table class="table table-bordered table-striped table-responsive">
+			<tr>
+				<th>Name</th>
+				<th>Value</th>
+			</tr>
+			<tr>
+				<td>Address</td>
+				<td>{{address.address}}</td>
+			</tr>
+			<tr>
+				<td>Hash 160</td>
+				<td>
+					<a href='/explorer/address/{{address.hash160}}'>{{address.hash160}}</a>
+				</td>
+			</tr>
+			{% set txcount = address.unspent.count %}
+			{% set spnt_cnt = 0 %}
+			{% set spent = 0 %}
+			{% set unspent = 0 %}
+			{% for v in address.unpent.list %}
+				{% if not v.spent and not v.spentHash %}
+					{% set unspent = unspent + v.amount/100000000 %}
+				{% else %}
+					{% set spent = spent + v.amount/100000000 %}
+					{% set spnt_cnt = spnt_cnt+1  %}
+				{% endif %}
+			{% endfor %}
+			<tr>
+				<td>Tx coint</td>
+				<td>{{txcount}}</td>
+			</tr>
+
+			<tr>
+				<td>Unspent inputs</td>
+				<td>{{address.unspent.stats.unspent_inputs}}</td>
+			</tr>
+
+			<tr>
+				<td>Spent inputs</td>
+				<td>{{address.unspent.stats.spent_inputs}}</td>
+			</tr>
+
+			<tr>
+				<td>Unspent balance</td>
+				<td>{{address.unspent.stats.unspent_amount/100000000}}</td>
+			</tr>
+			<tr>
+				<td>Spent balance</td>
+				<td>{{address.unspent.stats.spent_amount/100000000}}</td>
+			</tr>
+			<tr>
+				<td>Db list</td>
+				<td>
+					<a href='/explorer/db/{{address.hash160}}'>It can be a db</a>
+				</td>
+			</tr>
+
+		</table>
+
+		<h3>Transactions ({{address.pager.count}})</h3>
+		<table class="table table-bordered txlist table-responsive">
+			<tr>
+				<th>Tx from</th>
+				<th class='text-center'>Can spent</th>
+				<th>Tx to</th>
+				<th class='text-center'>Amount</th>
+			</tr>
+			{% set i = 0 %}
+			{% for data in address.unspent.list %}
+				<tr class='{% if i % 2 == 0 %}tx-even{% endif %}'>
+					{% set i = i+1 %}
+					<td>
+						<a href="/explorer/tx/{{data.tx}}?out={{data.index}}">{{trimTx(data.tx)}}</a>
+						[{{data.index}}]
+					</td>
+					<td class='text-center'>
+						{% if not data.spent and not data.spentHash %}
+							{% set canSpent = true %}
+						{% endif %}
+						<i class='fa fa-2x {% if canSpent %}fa-check green{% else %}fa-times red{% endif %}'></i>
+						<br/>
+						<span class=''>
+							{% if canSpent %}
+								unspent
+							{% else %}
+								spent
+							{% endif %}
+						</span>
+					</td>
+					<td>
+						{% if data.spentHash %}
+							<a href='/explorer/tx/{{data.spentHash}}'>{{trimTx(data.spentHash)}}</a>
+						{% endif %}
+					</td>
+					<td class='text-center'>{{data.amount/100000000}}</td>
+
+				</tr>
+			{% endfor %}
+		</table>
+
+		{% if address.pager.pages > 1%}
+			<ul class="pagination pagination-lg  justify-content-center">
+				{% if data.pager.page > 1%}
+					<li class="page-item">
+						<a class="page-link" href="{{address.pager.path}}page={{address.pager.page - 1}}">Prev</a>
+					</li>
+				{% endif %}
+
+				{% for i in address.pager.nearLeft..address.pager.nearRight %}
+					{% if i == address.pager.page %}
+						<li class="page-item active">
+							<a class="page-link" href="#">{{i}}
+								<span class="sr-only">(current)</span>
+							</a>
+						</li>
+					{% else %}
+						<li class="page-item">
+							<a class="page-link" href="{{address.pager.path}}page={{i}}">{{i}}</a>
+						</li>
+					{% endif %}
+				{% endfor %}
+
+				{% if address.pager.page < address.pager.pages %}
+					<li class="page-item">
+						<a class="page-link" href="{{address.pager.path}}page={{address.pager.page + 1}}">Next</a>
+					</li>
+				{% endif %}
+			</ul>
+		{% endif %}
+
+
+	</div>
+
+{% endblock %}

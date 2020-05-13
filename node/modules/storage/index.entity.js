@@ -35,8 +35,13 @@ class index {
             }
 
             this.setCache(key, value);
-            this.save();
-            return resolve(obj);
+            return this.save()
+                .then(() => {
+                    resolve(obj);
+                })
+                .catch((err) => {
+                    reject(err)
+                })
         });
 
     }
@@ -109,7 +114,14 @@ class index {
         return this.db
     }
     save() {
-        return this.getDB().saveDatabase();
+        return new Promise((resolve, reject) => {
+            this.getDB().saveDatabase((err) => {
+                if (err)
+                    reject(err)
+                else
+                    resolve();
+            });
+        });
     }
     setCache(key, val) {
         if (!this._cache[this.name])

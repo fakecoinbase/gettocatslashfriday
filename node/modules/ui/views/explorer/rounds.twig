@@ -1,0 +1,64 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+
+	<div class='row'>
+		<div class='col-6'>
+			<h4>Current round</h4>
+
+			<table class="table table-bordered table-striped table-responsive">
+				<tr>
+					<th>#</th>
+					<th>Validator</th>
+					<th>Is Active</th>
+				</tr>
+				{% for v in result.last.validators %}
+					<tr>
+						<td>
+							{{loop.index}}
+						</td>
+						<td>
+							<a href='/explorer/address/{{v}}'>{{trimTx(v)}}</a>
+						</td>
+						<td>
+							{% if result.last.cursor == loop.index-1%}
+								
+                                {% if top %}
+                                    <a href='/explorer/block/{{top.id}}'>{{trimTx(top.id)}}</a>
+                                {% endif %}
+                                
+							{% endif %}
+						</td>
+					</tr>
+				{% endfor %}
+			</table>
+
+		</div>
+		<div class='col-6'>
+			<h4>Next round</h4>
+
+
+			<table class="table table-bordered table-striped table-responsive">
+				<tr>
+					<th>#</th>
+					<th>Validator</th>
+				</tr>
+				{% for v in result.next.validators %}
+					<tr>
+						<td>
+							{{loop.index}}
+						</td>
+						<td>
+							<a href='/explorer/address/{{v}}'>{{trimTx(v)}}</a>
+						</td>
+					</tr>
+				{% endfor %}
+			</table>
+
+
+		</div>
+	</div>
+
+
+{% endblock %}

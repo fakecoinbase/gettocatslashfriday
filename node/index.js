@@ -1,11 +1,13 @@
-const { inherits } = require('util')
 const EventEmitter = require('events');
 const path = require('path');
 const appError = require('./error').createAppError;
 
 class app extends EventEmitter {
-    constructor(config) {
+    constructor(config, network) {
         super();
+
+        if (!network)
+            network = 'main';
 
         if (!config)
             config = {};
@@ -14,6 +16,8 @@ class app extends EventEmitter {
         if (config.cwd)
             this.cwd = config.cwd + "/node/";
 
+        config.network = network;
+        this.network = network;
         this.f_noconflict = false;
         this.fisReadySended = false;
         this.appstate = '';
@@ -61,7 +65,7 @@ class app extends EventEmitter {
     skipModules(skiplist) {
         this.skiplist = skiplist;
     }
-    //skil settings and modules for start 2 or more instances, must invoke before init()
+    //skip settings and modules for start 2 or more instances, must invoke before init()
     noConflict(cb) {
         this.f_noconflict = cb;
     }
@@ -136,7 +140,7 @@ class app extends EventEmitter {
             let res = null;
             let cls = require(filepath + '/index');
             this[name] = new cls(this, name);
-            if (this[name].init instanceof Function && this.isTestInstanceForModule(name))
+            if (this[name].init instanceof Function)
                 res = this[name].init();
 
             let rs;
@@ -194,24 +198,6 @@ class app extends EventEmitter {
 
         return this.config.arg;//get all config
     }
-    isTestInstanceForModule(moduleName) {
-
-        if (moduleName == 'config')
-            return true;
-
-        let list = this.cnf('tests');
-        let finded = false;
-        if (list.length > 0) {
-            for (let k in list) {
-                if (list[k] == moduleName)
-                    finded = true;
-            }
-
-            return finded;
-        }
-
-        return true;
-    }
     setSyncState(newState) {
         let oldState = this.syncstate;
         this.syncstate = newState;
@@ -244,8 +230,136 @@ class app extends EventEmitter {
             this.network.protocol.initNode(peers[i].split(":").join("//"));
         }
     }
-    send(fromKeystoreOrAccountName, ToPublicKeyHex, valueBuffer) {
-        return this.chain.sendEncryptedData(ToPublicKeyHex, valueBuffer, fromKeystoreOrAccountName);
+    getDefaultConfig() {
+        return {
+            "port": 19841,
+            "magic": "aa3a2b2f",
+            "nodes": [
+                "127.0.0.1//19841"
+            ],
+            "modules": [
+                "storage",
+                "rpc",
+                "orwell",
+                "wallet",
+                "networkhandler",
+                "network",
+                "ui",
+                "dapps",
+                "validatormanager"
+            ],
+            "consensus": {
+                "version": 1,
+                "protocol_version": 1,
+                "extends": "ddpos",
+                "ignorePrevChilds": true,
+                "shareStake": 0.3,
+                "delegates": [
+                    "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56",
+                    "03032f0fa03e1e6ec9dac5e84055bffbb99d57abd6de1e48741f0aa2471d72cd76"
+                ],
+                "timeout": 60,
+                "pause": 30,
+                "validatorCount": 60,
+                "staticDelegatesLimit": 2,
+                "changeBranchDelay": 1,
+                "blockSize": 1e7,
+                "nopeerstimeout": 15000,
+                "satoshi": 1e8,
+                "maxcoins": 20e6,
+                "masternodeAmount": 1000,
+                "emission": {
+                    "0": 50,
+                    "1-190": 100,
+                    "191-199,height": 13500,
+                    "200": 15000,
+                    "201-10000": 5,
+                    "10001-110000": 60,
+                    "110001-210000": 30,
+                    "210001-410000": 15,
+                    "410001-1010000": 10
+                },
+                "syncmax": 200,
+                "maturity": 100,
+                "minfeeperbyte": 1,
+                "genesisMode": false,
+                "blockversion": 1,
+                "txversion": 1,
+                "validationalert": true
+            },
+            "genesis": {
+                "v": 1,
+                "p": "0000000000000000000000000000000000000000000000000000000000000000",
+                "m": "4d6a58da73ae39cb8df89294842e4c622ccde1fab2c51d812be926534524d6f4",
+                "t": 1587129074,
+                "b": 0,
+                "n": 0,
+                "tx": [
+                    {
+                        "v": 1,
+                        "s": [
+                            [
+                                "3046022100c09dbfb69349e1bca3673bfe97acb3f897da66a8eca1811de33a0f243853e19802210097385f7f85a9a43f37dfdfc0093c8fb685798b445bc9c6e2f76e027f8ce778f1",
+                                "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56"
+                            ]
+                        ],
+                        "out": [
+                            {
+                                "address": "oKiuEwim7Cqwo9zaxCcHaQYPiunz2iM5Ac",
+                                "amount": 4750000000,
+                                "key": "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56"
+                            },
+                            {
+                                "address": "oHpESURCzrSQae4fWL9ZDtVa4sR6aLqm23",
+                                "amount": 250000000,
+                                "key": "03032f0fa03e1e6ec9dac5e84055bffbb99d57abd6de1e48741f0aa2471d72cd76"
+                            }
+                        ],
+                        "cb": "001122",
+                        "m": "b4ee9b6114d25fef5df065d1852819bc5ffe6927c779fe25107d6f1239574f44",
+                        "k": "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56"
+                    }
+                ],
+                "hash": "9a7068d4d9c9fa46ca770980400164997702c904194e958b353cd8c5842e1d69"
+            },
+            "rpc": {
+                "useServer": true,
+                "server": {
+                    "port": 41991,
+                    "host": "127.0.0.1",
+                    "path": "/",
+                    "strict": false,
+                    "ssl": null
+                }
+            },
+            "orwelldb": {
+                "path": "%home%/orwelldb/",
+                "systemAddress": "oKiuEwim7Cqwo9zaxCcHaQYPiunz2iM5Ac",
+                "systemKey": "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56"
+            },
+            "wallet": {
+                "changeAddress": false,
+                "operationfee": {
+                    "create": 1e6,
+                    "write": 10,
+                    "settings": 100
+                }
+            },
+            "ui": {
+                "port": "3000",
+                "host": "127.0.0.1"
+            },
+            "dapps": {
+                "http": "80",
+                "http.timeout": 60000,
+            }
+        }
+    }
+    getAgentName() {
+        return {
+            "name": "fridayjs",
+            "version": 0.1
+        }
     }
 }
 

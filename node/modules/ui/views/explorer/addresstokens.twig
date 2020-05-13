@@ -1,0 +1,97 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+	<ul class="nav nav-pills nav-fill">
+		<li class="nav-item">
+			<a class="nav-link " href="/explorer/address/{{addressQuery}}">Common info</a>
+		</li>
+		<li class="nav-item">
+			<a class="nav-link " href="/explorer/db/{{hashQuery}}">Database info</a>
+		</li>
+		<li class="nav-item">
+			<a class="nav-link active" href="/explorer/tokens/{{addressQuery}}">Tokens info</a>
+		</li>
+	</ul>
+
+	<div class="tx-info">
+
+		<h3>Token balances</h3>
+		<table class="table table-bordered table-striped table-responsive">
+			<tr>
+				<th>Token</th>
+				<th>Amount</th>
+			</tr>
+			{% for key,val in balances%}
+				<tr>
+					<td>
+						<a href='/explorer/token/{{key}}'>{{key}}</a>
+					</td>
+					<td>{{val}}</td>
+				</tr>
+			{% endfor %}
+		</table>
+
+		<h3>Token history ({{tokens.pager.count}})</h3>
+		<table class="table table-bordered txlist table-responsive">
+			<tr>
+				<th>Token</th>
+				<th>From</th>
+				<th>To</th>
+				<th class='text-center'>Amount</th>
+			</tr>
+			{% set i = 0 %}
+			{% for data in tokens.list %}
+				<tr class='{% if i % 2 == 0 %}tx-even{% endif %}'>
+					{% set i = i+1 %}
+					<td>
+						<a href="/explorer/token/{{data.ticker}}">{{data.ticker}}</a>
+					</td>
+					<td>
+						<a href="/explorer/tokens/{{data.from}}">{{data.from}}</a>
+					</td>
+					<td>
+						<a href="/explorer/tokens/{{data.to}}">{{data.to}}</a>
+					</td>
+					<td class='text-center'>
+						{%if data.to == addressQuery %}+{% else %}-
+						{% endif %}
+						{{data.amount}}</td>
+				</tr>
+			{% endfor %}
+		</table>
+
+		{% if tokens.pager.pages > 1%}
+			<ul class="pagination pagination-lg  justify-content-center">
+				{% if data.pager.page > 1%}
+					<li class="page-item">
+						<a class="page-link" href="{{tokens.pager.path}}page={{tokens.pager.page - 1}}">Prev</a>
+					</li>
+				{% endif %}
+
+				{% for i in tokens.pager.nearLeft..tokens.pager.nearRight %}
+					{% if i == tokens.pager.page %}
+						<li class="page-item active">
+							<a class="page-link" href="#">{{i}}
+								<span class="sr-only">(current)</span>
+							</a>
+						</li>
+					{% else %}
+						<li class="page-item">
+							<a class="page-link" href="{{tokens.pager.path}}page={{i}}">{{i}}</a>
+						</li>
+					{% endif %}
+				{% endfor %}
+
+				{% if tokens.pager.page < tokens.pager.pages %}
+					<li class="page-item">
+						<a class="page-link" href="{{tokens.pager.path}}page={{tokens.pager.page + 1}}">Next</a>
+					</li>
+				{% endif %}
+			</ul>
+		{% endif %}
+
+
+	</div>
+
+{% endblock %}

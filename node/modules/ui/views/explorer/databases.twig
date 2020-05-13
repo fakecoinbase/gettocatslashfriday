@@ -1,0 +1,52 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+<h3>Databases ({{db.pager.count}})</h3>
+
+<table class="table table-bordered table-striped table-responsive">
+	<tr>
+		<th>Name</th>
+		<th>~Records</th>
+	</tr>
+	{% for v in db.list %}
+		<tr>
+			<td>
+				<a href='/explorer/db/{{v.name}}'>{{v.name}}</a>
+			</td>
+			<td>{{v.records}}</td>
+		</tr>
+	{% endfor %}
+</table>
+
+{% if db.pager.pages > 1%}
+	<ul class="pagination pagination-lg  justify-content-center">
+		{% if db.pager.page > 1%}
+			<li class="page-item">
+				<a class="page-link" href="{{db.pager.path}}page={{db.pager.page - 1}}">Prev</a>
+			</li>
+		{% endif %}
+
+		{% for i in db.pager.nearLeft..db.pager.nearRight %}
+			{% if i == db.pager.page %}
+				<li class="page-item active">
+					<a class="page-link" href="#">{{i}}
+						<span class="sr-only">(current)</span>
+					</a>
+				</li>
+			{% else %}
+				<li class="page-item">
+					<a class="page-link" href="{{db.pager.path}}page={{i}}">{{i}}</a>
+				</li>
+			{% endif %}
+		{% endfor %}
+
+		{% if db.pager.page < db.pager.pages %}
+			<li class="page-item">
+				<a class="page-link" href="{{db.pager.path}}page={{db.pager.page + 1}}">Next</a>
+			</li>
+		{% endif %}
+	</ul>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+	<form action='' method='POST'>
+
+		{% if error %}
+			<div class='alert alert-warning'>
+				{{error}}
+			</div>
+		{% endif %}
+
+		<div class="form-group row">
+			<label for="from" class="col-sm-2 col-form-label">From</label>
+			<div class="col-sm-10">
+				<select name='from' class="form-control" id="from">
+					{% for addr in addressess %}
+						<option {% if data.from == addr.name %}selected{% endif %} value='{{addr.name}}'>{{addr.name}}
+							[
+							{{addr.balancehr}}
+							]</option>
+					{% endfor %}
+				</select>
+			</div>
+		</div>
+
+
+		<div class="form-group row">
+			<label for="to" class="col-sm-2 col-form-label">To</label>
+			<div class="col-sm-10">
+				<input type='text' value="{{data.to}}" name='to' class="form-control" id="to">
+			</div>
+		</div>
+
+
+		<div class="form-group row">
+			<label for="amount" class="col-sm-2 col-form-label">Amount</label>
+			<div class="col-sm-10">
+				<input type='text' value="{{data.amount}}" name='amount' class="form-control" id="amount" placeholder='0.00000000'>
+			</div>
+		</div>
+
+		<div class="form-group row">
+			<label for="" class="col-sm-2 col-form-label"></label>
+			<div class="col-sm-10">
+				<input type='submit' class='btn btn-primary' value='Send coins'>
+			</div>
+		</div>
+
+	</form>
+
+{% endblock %}

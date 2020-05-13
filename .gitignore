@@ -64,3 +64,4 @@ typings/
 /cleanup.bat
 /dockerfile
 /run.bat
+/config.json

@@ -1,0 +1,89 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+	<h3>Last blocks ({{pager.count}})</h3>
+
+
+	<div class="row">
+		<div class="col-1 col-xs-2 text-center">
+			<b>Height</b>
+		</div>
+
+		<div class="col-7 col-xs-6">
+			<b>
+				Block</b>
+		</div>
+		<div class="col-2 text-center">
+			<b>Size
+			</b>
+		</div>
+
+
+		<div class="col-2 text-center">
+			<b>Date</b>
+		</div>
+
+
+	</div>
+
+	{% for v in chain.list %}
+
+		<div class="row block">
+
+			<div class="col-1  col-xs-2  text-center">
+				<a href="/explorer/height/{{v.height}}">{{v.height}}</a>
+			</div>
+
+			<div style='overflow-x: hidden' class="col-7 col-xs-6">
+				<a href="/explorer/block/{{v.hash}}">{{v.hash}}</a><br/>
+				output
+				{{v.output}}
+			</div>
+
+			<div class="col-2 text-center">
+				{{v.size/1024}}
+			</div>
+
+			<div class="col-2 text-center">
+				{{v.time|durationFromTime}}
+				ago
+			</div>
+
+
+		</div>
+
+	{% endfor %}
+
+	{% if pager.pages > 1%}
+		<ul class="pagination pagination-lg  justify-content-center">
+			{% if data.pager.page > 1%}
+				<li class="page-item">
+					<a class="page-link" href="{{pager.path}}page={{pager.page - 1}}">Prev</a>
+				</li>
+			{% endif %}
+
+			{% for i in pager.nearLeft..pager.nearRight %}
+				{% if i == pager.page %}
+					<li class="page-item active">
+						<a class="page-link" href="#">{{i}}
+							<span class="sr-only">(current)</span>
+						</a>
+					</li>
+				{% else %}
+					<li class="page-item">
+						<a class="page-link" href="{{pager.path}}page={{i}}">{{i}}</a>
+					</li>
+				{% endif %}
+			{% endfor %}
+
+			{% if pager.page < pager.pages %}
+				<li class="page-item">
+					<a class="page-link" href="{{pager.path}}page={{pager.page + 1}}">Next</a>
+				</li>
+			{% endif %}
+		</ul>
+	{% endif %}
+
+
+{% endblock %}

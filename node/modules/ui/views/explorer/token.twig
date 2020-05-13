@@ -1,0 +1,176 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+
+	<div class="tx-info">
+		<h3>Token info</h3>
+		<table class="table table-bordered table-striped table-responsive">
+			<tr>
+				<th>Name</th>
+				<th>Value</th>
+			</tr>
+			<tr>
+				<td>Ticker</td>
+				<td>{{tokenInfo.ticker}}</td>
+			</tr>
+			<tr>
+				<td>Title</td>
+				<td>{{tokenInfo.title}}</td>
+			</tr>
+			<tr>
+				<td>Address</td>
+				<td>
+					<a href='/explorer/address/{{tokenInfo.address}}'>{{tokenInfo.address}}</a>
+				</td>
+			</tr>
+			<tr>
+				<td>Supply</td>
+				<td>
+					{{tokenInfo.emission}}
+				</td>
+			</tr>
+			<tr>
+				<td>is Stock</td>
+				<td>
+					{% if tokenInfo.isStock > 0 %}Yes{% else %}No
+					{% endif %}
+				</td>
+			</tr>
+			{% if tokenInfo.isStock %}
+
+				<tr>
+					<td>Stock share</td>
+					<td>
+						{{tokenInfo.share * 100}}%
+					</td>
+				</tr>
+			{% endif %}
+
+			<tr>
+				<td>Holders count</td>
+				<td>{{tokenInfo.holders|length}}</td>
+			</tr>
+
+			<tr>
+				<td>Token initial tx</td>
+				<td>
+					<a href='/explorer/tx/{{tokenInfo.initial.tx}}'>{{tokenInfo.initial.tx}}</a>
+				</td>
+			</tr>
+
+			<tr>
+				<td>Owner public key</td>
+				<td>
+					<a href='/explorer/address/{{tokenInfo.initial.writer}}'>{{tokenInfo.initial.writer}}</a>
+				</td>
+			</tr>
+
+			<tr>
+				<td>Owner address</td>
+				<td>
+					<a href='/explorer/address/{{tokenInfo.initial.writerAddress}}'>{{tokenInfo.initial.writerAddress}}</a>
+				</td>
+			</tr>
+
+		</table>
+
+		<h3>Transactions ({{tokenInfo.holders|length}})</h3>
+		<table class="table table-bordered txlist table-responsive">
+			<tr>
+				<th>Holder</th>
+				<th>Share</th>
+			</tr>
+			{% for haddr,hshare in tokenInfo.holders %}
+				<tr>
+					<td>
+						<a href='/explorer/address/{{haddr}}'>{{haddr}}</a>
+						{% if haddr == tokenInfo.initial.writerAddress%}
+							<b>owner</b>
+						{% endif %}
+						{% if haddr == tokenInfo.address%}
+							<b>emission address</b>
+						{% endif %}
+					</td>
+					<td>{{hshare}}
+						{{tokenInfo.ticker}}
+						(
+						{{(hshare/tokenInfo.emission) * 100}}% )</td>
+				</tr>
+			{% endfor %}
+		</table>
+
+		<h3>Transactions ({{token.pager.count}})</h3>
+		<table class="table table-bordered txlist table-responsive">
+			<tr>
+				<th>From</th>
+				<th>To</th>
+				<th class='text-center'>Amount</th>
+			</tr>
+			{% set i = 0 %}
+			{% for data in token.list %}
+				<tr class='{% if i % 2 == 0 %}tx-even{% endif %}'>
+					{% set i = i+1 %}
+					{% if  tokenInfo.address == data.from and tokenInfo.address == data.to %}
+						<td colspan='2' class='text-center'>
+							<b>emission of tokens</b>
+						</td>
+					{% else %}
+						<td>
+							<a href="/explorer/tokens/{{data.from}}">{{data.from}}</a>
+							{% if data.from == tokenInfo.initial.writerAddress%}
+								<b>owner</b>
+							{% endif %}
+							{% if data.from == tokenInfo.address%}
+								<b>emission address</b>
+							{% endif %}
+						</td>
+						<td>
+							<a href="/explorer/tokens/{{data.to}}">{{data.to}}</a>
+							{% if data.to == tokenInfo.initial.writerAddress%}
+								<b>owner</b>
+							{% endif %}
+							{% if data.to == tokenInfo.address%}
+								<b>emission address</b>
+							{% endif %}
+						</td>
+					{% endif %}
+					<td class='text-center'>{{data.amount}}</td>
+				</tr>
+			{% endfor %}
+		</table>
+
+		{% if token.pager.pages > 1%}
+			<ul class="pagination pagination-lg  justify-content-center">
+				{% if token.pager.page > 1%}
+					<li class="page-item">
+						<a class="page-link" href="{{token.pager.path}}page={{token.pager.page - 1}}">Prev</a>
+					</li>
+				{% endif %}
+
+				{% for i in token.pager.nearLeft..token.pager.nearRight %}
+					{% if i == token.pager.page %}
+						<li class="page-item active">
+							<a class="page-link" href="#">{{i}}
+								<span class="sr-only">(current)</span>
+							</a>
+						</li>
+					{% else %}
+						<li class="page-item">
+							<a class="page-link" href="{{token.pager.path}}page={{i}}">{{i}}</a>
+						</li>
+					{% endif %}
+				{% endfor %}
+
+				{% if token.pager.page < token.pager.pages %}
+					<li class="page-item">
+						<a class="page-link" href="{{token.pager.path}}page={{token.pager.page + 1}}">Next</a>
+					</li>
+				{% endif %}
+			</ul>
+		{% endif %}
+
+
+	</div>
+
+{% endblock %}

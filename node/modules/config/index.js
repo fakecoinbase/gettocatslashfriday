@@ -14,12 +14,25 @@ class config {
         });
     }
     loadFromFile(file) {
-        let config = require(file);
-        for (let i in config) {
-            this.arg[i] = config[i];
+        let options = require(file);
+
+        let net = options['network'];
+        let params = options[net];
+
+        params = Object.assign({}, this.app.getDefaultConfig(), params);
+        options[net] = params;
+
+        for (let i in options) {
+            this.arg[i] = options[i];
         }
     }
     loadOptions(options) {
+        let net = options['network'];
+        let params = options[net];
+
+        params = Object.assign({}, this.app.getDefaultConfig(), params);
+        options[net] = params;
+
         for (let i in options) {
             this.arg[i] = options[i];
         }
@@ -44,8 +57,7 @@ class config {
         if (!pathToConfig)
             pathToConfig = this.getLocalHomePath() + "/config.json";
 
-        if (this.app.cnf('debug').fs)
-            this.app.debug('info', 'config', 'save to file: ' + pathToConfig, JSON.stringify(this.app.cnf()));
+        this.app.debug('info', 'config', 'save to file: ' + pathToConfig, JSON.stringify(this.app.cnf()));
         fs.writeFileSync(pathToConfig, JSON.stringify(this.app.cnf()));
     }
 

@@ -8,8 +8,10 @@
 const Uint64LE = require("int64-buffer").Uint64LE;
 const bitPony = require('bitpony')
 const merkle = require('./merkle');
+const BN = require('bn.js');
 
 module.exports = util = {
+    BN: BN,
     array_rand: function (arr, count) {
         var r = [];
         for (var i = 0; i < count; i++) {
@@ -91,10 +93,10 @@ module.exports = util = {
     blockhash: function (headerHex) {
         return 0//bitPony.tool.reverseBuffer(bitPony.tool.sha256(bitPony.tool.sha256(new Buffer(headerHex, 'hex').slice(0, -1)))).toString('hex')
     },
-    merkleTree: function(arr){
+    merkleTree: function (arr) {
         return merkle.tree(util, arr);
     },
-    emptyObject: function(obj){
+    emptyObject: function (obj) {
         return Object.keys(obj).length === 0 && obj.constructor === Object
     },
     bitPony: bitPony

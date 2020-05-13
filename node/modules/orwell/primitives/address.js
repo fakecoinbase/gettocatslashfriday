@@ -133,7 +133,10 @@ module.exports = (app) => {
                 r_dotsfl = domain[0] != '.' && domain[domain.length - 1] != '.';
 
             return r_dotsfl && !r_dots.test(domain) && r.test(domain)
-
+        }
+        static isValidTicker(ticker) {
+            let r = /^([0-9a-z]{2,32})$/gi;
+            return r.test(ticker)
         }
     }
 

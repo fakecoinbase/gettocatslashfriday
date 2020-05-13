@@ -8,8 +8,7 @@ module.exports = (app) => {
             return this.set('top', data)
                 .then(() => {
                     let t = this.get('top');
-                    if (this.app.cnf('debug').blockchain_sync)
-                        this.app.debug("info", "orwell.dbindex", "new top: " + t.id + ", height: " + t.height);
+                    this.app.debug("info", "index", "new top: " + t.id + ", height: " + t.height);
                     return Promise.resolve(t);
                 });
         }

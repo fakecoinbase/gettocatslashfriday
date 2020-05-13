@@ -16,28 +16,27 @@ app.on("app.debug", function (data) {
     console.log("[" + new Date().toLocaleTimeString() + "]", "< " + data.level + " >", data.module, data.text);
 });
 
-app.on("app.mining.stop", (event) => {
-    if (event.type != 'finished')
-        return;
-
-    let block = app.orwell.BLOCK.fromJSON(event.data);
-    app.orwell.addBlockFromNetwork(null, block)
-        .then((data) => {
-
-            console.log('completed, put next lines into config of your network:\n');
-            console.log('### NEW GENESIS ###\n');
-            let b = data;
-            console.log(JSON.stringify(b));
-            console.log("### NEW GENESIS ###");
-            process.exit(0);
-
-        });
-})
 
 app.on('init', () => {
-    console.log('inited');
-    let ks = app.wallet.getAccount('node');
-    app.orwellminer.start(ks);
+    let ks = app.cnf('node');
+
+    let block = app.orwell.BLOCK.createNewBlock("001122", { public: ks.publicKey, private: ks.privateKey }, app.cnf('consensus').delegates);
+    console.log('completed, put next lines into config of your network:\n');
+    console.log('### NEW GENESIS ###\n');
+    let d = block.toJSON();
+    d.hash = block.getHash();
+    console.log(JSON.stringify(d));
+    console.log("### NEW GENESIS ###");
+    process.exit(0);
+    /*app.orwell.addBlockFromNetwork(null, block)
+        .then((data) => {
+
+            
+
+        })
+        .catch(e=>{
+            console.log(e)
+        })*/
 });
 
 app.noConflict((stage) => {//stage can be beforeload (additional modules is not loaded yet) and beforeinit (additional modules is loaded but not inited)

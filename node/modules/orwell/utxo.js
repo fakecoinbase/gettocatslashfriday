@@ -17,14 +17,13 @@ module.exports = (app) => {
         getCount() {
             return this.getList().length;
         }
-        addTx(tx, cb) {
-            if (app.cnf('debug').utxo)
-                app.debug("utxo", "info", "UTXO tx: " + tx.hash)
+        addTx(tx, options) {
+            app.debug("info", "utxo", "UTXO tx: " + tx.hash)
 
             let outs = tx.out;
             for (let o in outs) {
                 var out = outs[o];
-                this.addOutIndex(tx.hash, o, out.address, out.amount);
+                this.addOutIndex(tx.hash, o, out.address, out.amount, options);
             }
 
             for (let inp in tx.in) {
@@ -36,18 +35,17 @@ module.exports = (app) => {
                 let prevout;
                 try {
                     prevout = app.orwell.getOut(inpt.hash, inpt.index);
-                    this.removeOutIndex(tx.hash, prevout.addr, inpt.hash, inpt.index);
+                    console.log('prevout', prevout);
+                    this.removeOutIndex(tx.hash, prevout.address, inpt.hash, inpt.index);
                 } catch (e) {
+                    console.log('error', e)
                     //search in mempool
                 }
             }
 
-            if (cb instanceof Function)
-                cb(tx);
         }
-        addOutIndex(tx, index, addr, amount) {
-            if (app.cnf('debug').utxo)
-                app.debug("utxo", "info", "add UTXO index " + addr, tx + ":" + index, amount)
+        addOutIndex(tx, index, addr, amount, options) {
+            app.debug("info", "utxo", "add UTXO index " + addr, tx + ":" + index, amount)
 
             let addrind = this.get("address/" + addr);
             if (!addrind || !(addrind instanceof Array))
@@ -66,7 +64,8 @@ module.exports = (app) => {
                     tx: tx,
                     index: index,
                     amount: amount,
-                    spent: false
+                    spent: false,
+                    height: options.height
                 };
 
                 let o = obj;
@@ -84,8 +83,7 @@ module.exports = (app) => {
             return addrind
         }
         removeOutIndex(txhash, addr, tx, index) {
-            if (app.cnf('debug').utxo)
-                app.debug("utxo", "info", "update spent UTXO index " + txhash + " " + addr, tx + ":" + index)
+            app.debug("info", "utxo", "update spent UTXO index " + txhash + " " + addr, tx + ":" + index)
 
             let addrind = this.get("address/" + addr);
             if (!addrind || !(addrind instanceof Array))
@@ -154,20 +152,22 @@ module.exports = (app) => {
             return false;
         }
         getUTXOList(addr, limit, offset) {
-            let addrind = this.get("address/" + addr);
+            let a = this.get("address/" + addr);
+            let addrind = [...a];
+
             if (!addrind || !(addrind instanceof Array))
                 addrind = [];
 
             addrind.reverse();
 
-            let spent = 0, unspent = 0, spent_in = 0, unspent_in = 0;
+            let spent = new app.tools.BN(0), unspent = new app.tools.BN(0), spent_in = 0, unspent_in = 0;
 
             for (let i in addrind) {
                 if (addrind[i].spent && addrind[i].spentHash) {
-                    spent += addrind[i].amount;
+                    spent.iadd(new app.tools.BN(addrind[i].amount));
                     spent_in++;
                 } else {
-                    unspent += addrind[i].amount;
+                    unspent.iadd(new app.tools.BN(addrind[i].amount));
                     unspent_in++;
                 }
             }
@@ -176,15 +176,104 @@ module.exports = (app) => {
             return {
                 stats: {
                     spent_inputs: spent_in,
-                    spent_amount: spent,
+                    spent_amount: spent.toString(10),
                     unspent_inputs: unspent_in,
-                    unspent_amount: unspent
+                    unspent_amount: unspent.toString(10)
                 },
                 limit: limit,
                 offset: offset,
                 count: addrind.length,
                 items: items.length,
                 list: items
+            }
+        }
+        getUTXOHistory(addr, limit, offset) {
+            let addrind;
+            let a = this.get("address/" + addr);
+            addrind = [...a];
+
+            if (!addrind || !(addrind instanceof Array))
+                addrind = [];
+
+            addrind.reverse();
+
+            let spent = new app.tools.BN(0), unspent = new app.tools.BN(0), spent_in = 0, unspent_in = 0;
+
+            for (let i in addrind) {
+                if (addrind[i].spent && addrind[i].spentHash) {
+                    spent.iadd(new app.tools.BN(addrind[i].amount));
+                    spent_in++;
+                } else {
+                    unspent.iadd(new app.tools.BN(addrind[i].amount));
+                    unspent_in++;
+                }
+            }
+
+            let items = addrind.slice(offset, offset + limit);
+
+            let items2 = [];
+            for (let i in items) {
+
+                let tx = app.orwell.getTx(items[i].tx);
+
+                if (items[i].spent && items[i].spentHash && !tx.isCoinbase()) {
+                    let addressess = [];
+
+                    let tx = app.orwell.getTx(items[i].spentHash);
+                    let outs = tx.getOutputs();
+                    if (outs.length == 2) {//change
+                        addressess = [outs.address];
+                    } else {
+                        for (let o in outs) {
+                            addressess.push(outs[o]);
+                        }
+                    }
+
+                    items2.push({
+                        type: 'out',
+                        tx: items[i].spentHash,
+                        from: [addr],
+                        to: addressess,
+                        amount: items[i].amount,
+                        height: items[i].height,
+                    })
+                } else {
+                    let tx = app.orwell.getTx(items[i].tx);
+                    let ins = tx.toJSON().s;
+
+                    let addressess = [];
+
+                    if (!tx.isCoinbase())
+                        for (let n in ins) {
+                            let addr = app.orwell.ADDRESS.generateAddressFromPublicKey(ins[n][1]);
+                            addressess.push(addr);
+                        }
+
+                    items2.push({
+                        type: 'in',
+                        tx: items[i].spentHash ? items[i].spentHash : items[i].tx,
+                        from: addressess,
+                        to: [addr],
+                        amount: items[i].amount,
+                        height: items[i].height,
+                    })
+                }
+
+
+            }
+
+            return {
+                stats: {
+                    spent_inputs: spent_in,
+                    spent_amount: spent.toString(10),
+                    unspent_inputs: unspent_in,
+                    unspent_amount: unspent.toString(10)
+                },
+                limit: limit,
+                offset: offset,
+                count: addrind.length,
+                items: items2.length,
+                list: items2
             }
         }
         startValidate(hash) {
@@ -223,7 +312,7 @@ module.exports = (app) => {
 
             for (let i in addrind) {
                 if (addrind[i].spent || addrind[i].spentHash || addrind[i].locked) {
-                    if (!this.app.orwell.mempool.have(addrind[i].spentHash)) {
+                    if (!this.app.orwell.mempool.getTx(addrind[i].spentHash)) {
                         try {
                             this.app.orwell.getTx(addrind[i].spentHash)
                         } catch (e) {

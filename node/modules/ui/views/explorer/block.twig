@@ -1,0 +1,240 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+	<div class="block-info">
+		<h3>Block info</h3>
+		<table class="table table-bordered table-striped table-responsive">
+			<tr>
+				<th>Name</th>
+				<th>Value</th>
+			</tr>
+			<tr>
+				<td>Version</td>
+				<td>{{block.v}}</td>
+			</tr>
+			<tr>
+				<td>Hash</td>
+				<td>{{block.hash}}</td>
+			</tr>
+			<tr>
+				<td>Confirmation</td>
+				<td>{{block.confirmation}}</td>
+			</tr>
+			<tr>
+				<td>Prev block</td>
+				<td>
+					<a href="/explorer/block/{{block.p}}">{{block.p}}</a>
+				</td>
+			</tr>
+
+			{% if (block.next_block)%}
+				<tr>
+					<td>Next block</td>
+					<td>
+						<a href="/explorer/block/{{block.next_block}}">{{block.next_block}}</a>
+					</td>
+				</tr>
+			{% endif %}
+
+			<tr>
+				<td>Merkle root</td>
+				<td>{{block.m}}</td>
+			</tr>
+			<tr>
+				<td>Block time</td>
+				<td>{{block.time|durationFromTime}}
+					ago /
+					{{block.time|date}}</td>
+			</tr>
+			<tr>
+				<td>Bits</td>
+				<td>{{block.b}}</td>
+			</tr>
+			<tr>
+				<td>Size(kB)</td>
+				<td>{{  block.size / 1024 }}</td>
+			</tr>
+			<tr>
+				<td>Height</td>
+				<td>
+					<a href="/explorer/height/{{block.height}}">{{block.height}}</a>
+				</td>
+			</tr>
+			<tr>
+				<td>Validator id</td>
+				<td>{{block.nonce}}</td>
+			</tr>
+			<tr>
+				<td>Block reward</td>
+				<td>{{block.reward}}
+					coins</td>
+			</tr>
+		</table>
+
+		<h3>Coinbase</h3>
+		<a name='coinbase'></a>
+		{% set coinbase = block.tx[0] %}
+		<table class="table table-bordered table-striped table-responsive">
+			<tr>
+				<th>Name</th>
+				<th>Value</th>
+			</tr>
+			<tr>
+				<td>Hash</td>
+				<td>
+					<a href="/explorer/tx/{{coinbase.hash}}">{{coinbase.hash}}</a>
+				</td>
+			</tr>
+			<tr>
+				<td>Amount</td>
+
+				<td>
+					{{block.reward}}
+					({{block.reward-block.fee/100000000}}
+					+
+					{{block.fee/100000000}})
+				</td>
+			</tr>
+			<tr>
+				<td>Block author</td>
+				<td>
+					<a href="/explorer/address/{{coinbase.k}}">{{coinbase.k}}</a>
+				</td>
+			</tr>
+			<tr>
+				<td>Block author address</td>
+				<td>
+					<a href="/explorer/address/{{ coinbase.out[block.nonce].address }}">{{ coinbase.out[block.nonce].address }}
+						</a>
+				</td>
+			</tr>
+
+			{% if block.tx[0].coinbase %}
+				{% set tx = block.tx[0] %}
+				{% set data = tx.coinbaseData %}
+				<tr>
+					<td>Coinbase author</td>
+					<td>{{data.authorName}}</td>
+				</tr>
+
+				<tr>
+					<td>Coinbase hardware/software</td>
+					<td>{{data.hardwareName}}</td>
+				</tr>
+
+				<tr>
+					<td>Coinbase date</td>
+					<td>
+						{{data.time|durationFromTime}}
+						ago /
+						{{data.time|date}}
+					</td>
+				</tr>
+			{% endif %}
+
+			{% if block.tx[0].coinbaseData.bytes %}
+				<tr>
+					<td>Coinbase signal flags</td>
+					<td>
+						<table class="table table-bordered">
+							<tr>
+								{% set k = 0 %}
+								{% for i in block.tx[0].coinbaseData.bytes %}
+									<td>{{k}}</td>
+									{% set k = k+1 %}
+								{% endfor %}
+							</tr>
+							<tr>
+								{% for i in block.tx[0].coinbaseData.bytes %}
+									<td>{{i}}</td>
+								{% endfor %}
+							</tr>
+						</table>
+					</td>
+				</tr>
+			{% endif %}
+
+		</table>
+
+		<h3>Tx list</h3>
+		<table class="table table-bordered txlist table-responsive">
+			<tr>
+				<th>Tx</th>
+				<th class='text-center'>In</th>
+				<th class='text-center'>Out</th>
+				<th class='text-center'>Fee</th>
+				<th class='text-center'>Size</th>
+			</tr>
+
+			{% for tx in block.tx %}
+				<tr class='{{ loop.index%2 == 0?"tx-even":"" }}'>
+
+
+					<td>
+						<a name='{{tx.hash}}'></a>
+						<a href="/explorer/tx/{{tx.hash}}">{{tx.hash}}</a>
+					</td>
+					<td class='text-center'>{{tx.in_amount}}</td>
+					<td class='text-center'>{{tx.out_amount}}</td>
+					<td class='text-center'>{{tx.fee/100000000}}</td>
+					<td class='text-center'>{{tx.size/1024}}</td>
+
+				</tr>
+
+				<tr class='{{ loop.index%2 == 0?"tx-even":"" }}'>
+					<td colspan="5">
+						<div class="row">
+
+							<div class="col text-center">
+
+								{% if tx.coinbase %}
+									<a href='#coinbase'>coinbase</a>
+								{% else %}
+									{% for txin in tx.in %}
+										<div class='row'>
+											<div class='col-sm-8'>
+												<a href='/explorer/address/{{txin.writeraddress}}'>{{txin.writerAddress}}</a>
+											</div>
+											<div class='col-sm-4'>
+												<a href='/explorer/tx/{{txin.hash}}?out={{txin.index}}'>{{trimTx(txin.hash)}}
+													out
+													<{{txin.index}}></a>
+												</div>
+											</div>
+										{% endfor %}
+									{% endif %}
+
+								</div>
+								<div class='col-sm-1 col-xs-2'>
+									<i class='fa fa-arrow-right fa-2x'></i>
+								</div>
+								<div class="col text-center">
+
+									{% set k = 0 %}
+									{% for out in tx.out %}
+										<a name='#{{tx.hash}}-{{k}}'></a>
+										{% set k = k+1 %}
+										<div class='row'>
+											<div class='col-sm-8'>
+												<a href='/explorer/address/{{out.address}}'>{{out.address}}</a>
+											</div>
+											<div class='col-sm-4'>
+												{{out.amount/100000000}}
+											</div>
+										</div>
+									{% endfor %}
+
+								</div>
+								<div class="w-100"></div>
+
+							</div>
+						</td>
+					</td>
+				</tr>
+			{% endfor %}
+		</table>
+
+	</div>
+
+{% endblock %}

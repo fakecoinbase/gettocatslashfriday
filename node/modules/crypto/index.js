@@ -35,11 +35,13 @@ crypto.prototype = {
 
 }
 
-var EC = require('elliptic').ec;
-var ec = new EC('secp256k1')
-var cr = require('crypto');
-var hash = require('hash.js');
-var base58 = require('base-58');
+const EC = require('elliptic').ec;
+const ec = new EC('secp256k1')
+const cr = require('crypto');
+const hash = require('hash.js');
+const base58 = require('base-58');
+const ecdsacsr = require('ecdsa-csr');
+const keys = require('key-encoder').default;
 
 module.exports = {
     createKeyPair: function () {
@@ -82,21 +84,40 @@ module.exports = {
 
         secret = new Buffer(secret, 'hex');
         const key = cr.scryptSync(secret, '5c4d018cdceb47b7051045c29d3130203b999f03d3c4200b7fe957ea99', secret.length);
-        const iv = Buffer.alloc(16, 0);
-
+        const iv = cr.randomBytes(16);
         let cipher = cr.createCipheriv(algorithm, new Buffer(key, 'hex'), iv);
-        return Buffer.concat([cipher.update(new Buffer(buffer, 'hex')), cipher.final()]);
+        return Buffer.concat([iv, cipher.update(new Buffer(buffer, 'hex')), cipher.final()]);
     },
     decryptECDH(buffer, secret, algorithm) {
         if (!algorithm)
             algorithm = 'aes-256-ctr';
 
+        const iv = buffer.slice(0, 16);
+        const payload = buffer.slice(16);
         secret = new Buffer(secret, 'hex');
         const key = cr.scryptSync(secret, '5c4d018cdceb47b7051045c29d3130203b999f03d3c4200b7fe957ea99', secret.length);
-        const iv = Buffer.alloc(16, 0);
-
         let decipher = cr.createDecipheriv(algorithm, key, iv);
-        return Buffer.concat([decipher.update(buffer), decipher.final()]);
+        return Buffer.concat([decipher.update(payload), decipher.final()]);
+    },
+    createPEMfromPrivateKey(privateKey) {
+        let keyEncoder = new keys({
+            curveParameters: [1, 3, 132, 0, 10],
+            privatePEMOptions: { label: 'EC PRIVATE KEY' },
+            publicPEMOptions: { label: 'PUBLIC KEY' },
+            curve: new EC('secp256k1')
+        });
+
+        return keyEncoder.encodePrivate(privateKey, 'raw', 'pem');
+    },
+    createCSRfromPEM(pem, domains) {
+        return new Promise(resolve => {
+            ecdsacsr({ key: pem, domains: domains }).then(function (csr) {
+                return csr;
+            });
+        })
+    },
+    createCSRfromPrivateKey(privateKey, domains) {
+        return this.createCSRfromPEM(this.createPEMfromPrivateKey(privateKey), domains);
     },
     sha256: function (message, output) {
         if (!output)

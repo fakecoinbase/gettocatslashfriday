@@ -1,0 +1,46 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+<h3>Creation record</h3>
+<pre>{{db.creation|json}}</pre>
+
+<h3>Actual settings record</h3>
+<pre>{{db.actualSettings|json}}</pre>
+
+
+<h3>Records list</h3>
+<pre>{{db.list|json}}</pre>
+
+
+{% if db.pager.pages > 1%}
+	<ul class="pagination pagination-lg  justify-content-center">
+		{% if db.pager.page > 1%}
+			<li class="page-item">
+				<a class="page-link" href="{{db.pager.path}}page={{db.pager.page - 1}}">Prev</a>
+			</li>
+		{% endif %}
+
+		{% for i in db.pager.nearLeft..db.pager.nearRight %}
+			{% if i == db.pager.page %}
+				<li class="page-item active">
+					<a class="page-link" href="#">{{i}}
+						<span class="sr-only">(current)</span>
+					</a>
+				</li>
+			{% else %}
+				<li class="page-item">
+					<a class="page-link" href="{{db.pager.path}}page={{i}}">{{i}}</a>
+				</li>
+			{% endif %}
+		{% endfor %}
+
+		{% if db.pager.page < db.pager.pages %}
+			<li class="page-item">
+				<a class="page-link" href="{{db.pager.path}}page={{db.pager.page + 1}}">Next</a>
+			</li>
+		{% endif %}
+	</ul>
+{% endif %}
+
+{% endblock %}

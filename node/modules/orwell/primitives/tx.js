@@ -179,9 +179,19 @@ module.exports = (app) => {
             return this.inputs
         }
         send() {
-            let tx = this.toJSON();
-            this.app.network.protocol.sendAll("mempool.tx", tx);
-            return tx.hash;
+            return new Promise((resolve, reject) => {
+                let tx = this.toJSON();
+                this.app.network.protocol.sendAll("mempool.tx", tx);
+                //tx.hash;
+
+                app.on("app.orwell.tx" + tx.hash, (status, tx, errcode, errmsg) => {
+                    if (!status)
+                        reject(tx.hash);
+                    else
+                        resolve(tx.hash);
+                })
+
+            })
         }
         isValid(context) {
             this.prepareDataScript();
@@ -290,7 +300,7 @@ module.exports = (app) => {
         if (app.cnf('consensus').genesisMode)
             height = -1;
         //orwell network have not coinbase transaction (need pubkey of block creator)
-        
+
         return TX.createFromJSON({
             version: app.cnf('consensus').version,
             in: [{ index: 0xffffffff, coinbase: coinbaseBytes }],

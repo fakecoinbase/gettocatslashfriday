@@ -22,59 +22,65 @@ module.exports = (app, orwell) => {
         //need to search dataId in network (local data dont have this info)
     });
 
+    cns.on("app.data.new", (data) => {
+        if (app.db.get("activesync"))
+            return false;
+
+        if (app.getSyncState() != 'active')
+            return false;
+
+        if (data.chain != 'main')
+            return false;
+
+        app.debug("info", "validatormanager", "received block " + data.dataId + " from network in mainchain, wait 30 sec");
+        setTimeout(() => {
+            app.validatormanager.checkActiveValidator();
+        }, 40000)
+    });
+
     //cns.on("app.data{someDataId}");//emit this event when dataId added in main chain
     //cns.on("app.data.tx{someTxId}");//emit this event when data with txId added in main chain 
+    cns.defineDataClass(orwell.BLOCK);
 
-    cns.defineDataClass(((app) => {
-
-        class DATA extends app.DATA {
-            static getVersionFieldName() {
-                return 'version';
+    /*cns.defineValidatorClass(((app) => {
+        class Validator extends app.VALIDATOR {
+            constructor(data) {
+                super(data)
+            }
+            updatePriority(priority) {
+                this.data.priority = priority;
+                //create tx
             }
 
-            static getIdFieldName() {
-                return 'hash';
+            setPriorityConfirm(f) {
+                this.synced = !!f;
+                //create tx - synced = false
+                //tx in blockchain - synced = true
             }
 
-            static getPrevIdFieldName() {
-                return 'hashPrevBlock';
-            }
-
-            static getTimeFieldName() {
-                return 'time';
-            }
-
-            static getBitsFieldName() {
-                return 'bits';
-            }
-
-            getStakeValue(height) {
-                //this method only for proof of stake consensus
-                //public key = this.getKey();
-                //get from blockchain outs for key 
-                return 0;
+            isPriorityConfirmed() {
+                return this.synced;
             }
         }
 
-        return DATA;
-    })(cns));
+        return Validator;
+    })(cns));*/
 
     cns.defineConsensusClass(((app) => {
-        class PoSConsensus extends app.CONSENSUS.ProofOfWorkConsensus {//app.CONSENSUS.ProofOfStakeConsensus
+        class PoSConsensus extends app.CONSENSUS.DynamicDelegateProofOfStakeConsensus {
             constructor() {
                 super("Orwell proof of stake consensus", "orwdpos")
             }
-            isDataMatch() {
-                return true;
+            isDataMatch(data) {
+                return data.isValid();
             }
-            getStakeToTargetTransform(publicKey, stake, target) {
-
-                /*let share = stake / allcoins;//[0;1]
-                let shareAll = 0.3 * share;//max share - 30%
-                return target * (1 - shareAll);//min: 0.7 * target, max: 1 * target*/
-
-                return target;
-
+            isPeerCanSendData(peer) {
+                //peer can be just broadcaster, check key of block instead
+                return true;
+                /*(if (app.dataManager.getHeight() < 0 || !app.dataManager.getHeight())
+                    return true;//genesis
+                return this.isDelegateMode() ? this.getConfig('delegates').indexOf(peer.getId()) != -1 : app.roundManager.isActiveValidator(peer.getId());
+                */
             }
         }
 
@@ -107,9 +113,7 @@ module.exports = (app, orwell) => {
             getDataList() {
                 let commonCnt = orwell.blockpool.blockCount(), m = 0;
 
-                if (app.cnf('debug').blockchain_sync)
-                    app.debug("info", "orwell", "blockchain local sync: finded " + commonCnt + " records, reading:");
-
+                app.debug("info", "orwell", "blockchain local sync: finded " + commonCnt + " records, reading:");
                 let blocks = [];
                 let arr = orwell.blockpool.loadBlocks(commonCnt);//asc//todo, fix limit,offset
 
@@ -156,12 +160,7 @@ module.exports = (app, orwell) => {
 
             getData(id) {
                 let block = false;
-                try {
-                    block = orwell.blockpool.getBlock(id)
-                } catch (e) {
-
-                }
-
+                block = orwell.blockpool.getBlock(id)
                 if (block.hash) {
                     delete block.meta
                     delete block.$loki;
@@ -219,6 +218,12 @@ module.exports = (app, orwell) => {
                 if (app.cnf('consensus').genesisMode)
                     return 0;
 
+                if (dataId == this.getGenesis().hash)
+                    return 0;
+
+                if (dataId == '0000000000000000000000000000000000000000000000000000000000000000')
+                    return -1;
+
                 let blockNumber = orwell.index.get('block/' + dataId).height;
                 if (!blockNumber && blockNumber != 0)
                     throw new Error('block ' + dataId + ' is not exist');
@@ -226,6 +231,8 @@ module.exports = (app, orwell) => {
             }
 
             getHeight() {
+                if (app.cnf('consensus').genesisMode)
+                    return -1;
                 return orwell.index.get('top').height;
             }
 
@@ -246,12 +253,15 @@ module.exports = (app, orwell) => {
 
                     orwell.index.setContext(options.chain + "/" + options.height);
 
-                    let b = data.toJSON();
+                    let b = data.toJSON('hash');
+
                     let txpromises = [];
+                    let dspromise = Promise.resolve();
 
                     for (let i in b.tx) {
                         let tx = b.tx[i];
-                        orwell.index.set(path + "tx/" + tx.hash, { block: b.hash, index: i });
+
+                        txpromises.push(orwell.index.set(path + "tx/" + tx.hash, { block: b.hash, index: i }));
                         if (tx.hash) {
                             orwell.utxo.addTx(tx, options);
 
@@ -291,9 +301,9 @@ module.exports = (app, orwell) => {
                                         }, options);
                                 }
 
-                                if (tx.datascript && !tx.coinbase) {
+                                if (tx.ds && !tx.coinbase) {
                                     this.addDSIndex({ hash: tx.hash, out: tx.out[0] }, options);
-                                    app.orwell.dsIndex.addDatascript(tx, options);
+                                    dspromise = dspromise.then(() => { return app.orwell.dsIndex.addDatascript(tx, options) });
                                 }
 
                                 txpromises.push(orwell.mempool.removeTx(tx.hash));
@@ -304,11 +314,12 @@ module.exports = (app, orwell) => {
                     }
 
                     Promise.all(txpromises.concat([
+                        dspromise,
                         orwell.index.set(path + "index/" + options.height, b.hash),
-                        orwell.index.set(path + "prev/" + b.hash, b.prev),
-                        orwell.index.set(path + "time/" + b.hash, b.time),
+                        orwell.index.set(path + "prev/" + b.hash, b.p),
+                        orwell.index.set(path + "time/" + b.hash, b.t),
                         orwell.index.set(path + "block/" + b.hash, {
-                            prev: b.prev,
+                            prev: b.p,
                             height: options.height
                         })
                     ]))
@@ -324,7 +335,9 @@ module.exports = (app, orwell) => {
                 let txk = orwell.index.get("tx/" + hash);
                 if (txk) {
                     let b = this.getData(txk.block);
-                    let tx = b.vtx[txk.index];
+                    let tx = b.tx[txk.index];
+                    tx.fromBlock = txk.block;
+                    tx.fromIndex = this.getDataHeight(txk.block);
                     return tx;
                 } else {
                     throw new Error('can not find tx ' + hash);
@@ -335,10 +348,10 @@ module.exports = (app, orwell) => {
             }
 
             getOut(hash, index_cnt) {
-                if (hash == "0000000000000000000000000000000000000000000000000000000000000000" && index_cnt == 0xffffffff)
+                if (hash == "0000000000000000000000000000000000000000000000000000000000000000" && index_cnt == -1)
                     return false;
                 let tx = this.getTx(hash);
-                return tx.toJSON().out[index_cnt];
+                return tx.getOutputs()[index_cnt];
             }
 
             addOutIndex(data, options) {
@@ -349,8 +362,7 @@ module.exports = (app, orwell) => {
                 if (options.chain != 'main')
                     path = 'main/';
 
-                if (app.cnf('debug').blockchain_sync)
-                    app.debug("info", "orwell", "add index " + data.address, data.hash, data.amount)
+                app.debug("info", "index", "add index " + data.address, data.hash, data.amount)
 
                 let addrind = orwell.index.get(path + "address/" + data.address);
                 if (!addrind || !(addrind instanceof Array))
@@ -389,13 +401,11 @@ module.exports = (app, orwell) => {
 
                 let path = '';
                 if (options.chain != 'main')
-                    path = 'main/';
+                    path = options.chain + '/';
 
-                context.out.address = orwell.SCRIPT.scriptToAddr(context.out.scriptPubKey || context.out.script);
-                context.out.addrHash = orwell.SCRIPT.scriptToAddrHash(context.out.scriptPubKey || context.out.script).toString('hex');
+                context.out.addrHash = orwell.ADDRESS.getPublicKeyHashByAddress(context.out.address).toString('hex');
 
-                if (app.cnf('debug').indexing)
-                    app.debug("info", "orwell", "add ds index " + context.out.addrHash, context.hash);
+                app.debug("info", "index", "add ds index " + context.out.addrHash, context.hash);
 
                 let addrind = orwell.index.get(path + "ds/address/" + context.out.addrHash);
                 if (!addrind || !(addrind instanceof Array))
@@ -423,12 +433,21 @@ module.exports = (app, orwell) => {
                 }
 
                 if (!d.hash) {
-                    return orwell.blockpool.save(data.toJSON())
+                    let d = data.toJSON('hash');
+                    return orwell.blockpool.save(d)
                         .then(() => {
                             return this.indexData(data, {
                                 chain: 'main',
                                 height: blockchain_height,
-                            });
+                            })
+                                .then((res) => {
+                                    cns.emit("app.data.new", {
+                                        chain: 'main',
+                                        height: blockchain_height,
+                                        dataId: data.getId(),
+                                    });
+                                    return Promise.resolve(res);
+                                })
                         })
                 }
 
@@ -438,11 +457,20 @@ module.exports = (app, orwell) => {
             __addToSide(data) {
                 let hash = orwell.index.get('side/block/' + data.getId()).hash;
                 if (!hash && !orwell.index.get('block/' + data.getId()).hash) {
-                    return orwell.sidepool.save(data.toJSON())
+                    let d = data.toJSON('hash');
+
+                    return orwell.sidepool.save(d)
                         .then(() => {
                             return this.indexData(data, {
                                 chain: 'side',
                             })
+                                .then((res) => {
+                                    cns.emit("app.data.new", {
+                                        chain: 'side',
+                                        dataId: data.getId(),
+                                    });
+                                    return Promise.resolve(res);
+                                })
                         })
                 }
 
@@ -452,11 +480,20 @@ module.exports = (app, orwell) => {
             __addToOrphan(data) {
                 let hash = orwell.index.get('orphan/block/' + data.getId()).hash;
                 if (!hash && !orwell.index.get('side/block/' + data.getId()).hash && !orwell.index.get('block/' + data.getId()).hash) {
-                    return orwell.orphanpool.save(data.toJSON())
+                    let d = data.toJSON('hash');
+
+                    return orwell.orphanpool.save(d)
                         .then(() => {
                             return this.indexData(data, {
                                 chain: 'orphan',
-                            });
+                            })
+                                .then((res) => {
+                                    cns.emit("app.data.new", {
+                                        chain: 'orphan',
+                                        dataId: data.getId(),
+                                    });
+                                    return Promise.resolve(res);
+                                })
                         });
                 }
 

@@ -1,0 +1,44 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+
+	<h3>Peer info</h3>
+	<table class="table table-bordered table-striped">
+
+		<tr>
+			<td>Node</td>
+			<td>LastMsg</td>
+			<td>Height</td>
+			<td>Useragent</td>
+			<td>Connected</td>
+			<td>Sent / Recv bytes</td>
+		</tr>
+
+		{% for info in peers %}
+			<tr>
+				<td>
+					<a href='/explorer/address/{{info.nodekey}}'>{{trimTx(info.nodekey)}}</a>
+				</td>
+				<td>{{info.lastMsg|durationFromTime}}
+					ago</td>
+				<td>
+					<a href='/explorer/height/{{info.top.height}}'>{{info.top.height}}</a>
+					<br/>
+					<a href='/explorer/block/{{info.top.hash}}'>{{info.top.hash}}</a>
+				</td>
+				<td>{{info.agent}}
+					(v
+					{{info.agent_version}})</td>
+				<td>{{info.conntime|durationFromTime}}
+					ago</td>
+				<td>
+					{{info.sentBytes}}
+					/
+					{{info.recvBytes}}
+				</td>
+			</tr>
+		{% endfor %}
+	</table>
+
+{% endblock %}

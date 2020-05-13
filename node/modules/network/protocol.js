@@ -46,13 +46,13 @@ protocol.prototype = {
         let myhash = this.app.crypto.sha256(this.app.crypto.sha256(package1.command + package1.payload.toString('hex'))).toString('hex');
         if (myhash != package1.checksum) {
             //not full message, wait another chunks
-            if (this.app.cnf('debug').protocol)
-                this.app.debug('error', 'network', "!! cant read message, hash is not valid or size of message is not equals, size (" + package1.checksum + "," + myhash + ")")
+            this.app.debug('error', 'network', "!! cant read message, hash is not valid or size of message is not equals, size (" + package1.checksum + "," + myhash + ")")
         }
 
         return [
             package1.command,
-            data || {}
+            data || {},
+            myhash
         ]
     },
     init: function () {
@@ -60,8 +60,7 @@ protocol.prototype = {
 
         let nodes = this.getNodeList();
         for (let i in nodes) {
-            if (this.app.cnf('debug').network)
-                this.app.debug("info", 'network', 'init node ' + nodes[i])
+            this.app.debug("info", 'network', 'init node ' + nodes[i])
             this.initNode(nodes[i])
         }
     },
@@ -86,8 +85,7 @@ protocol.prototype = {
     },
     getNodeKey: function () {
         if (!this.app.cnf('node').publicKey) {
-            if (this.app.cnf('debug').network)
-                this.app.debug('error', 'network', "to start node need generate KeyPair")
+            this.app.debug('error', 'network', "to start node need generate KeyPair")
             throw new Error('error, to start node need generate KeyPair');
         }
         return this.nodeKey = this.app.cnf('node').publicKey
@@ -98,8 +96,7 @@ protocol.prototype = {
         let decrypted = this.app.network.decryptMessage(data.payload, this.getAddressUniq(rinfo), data.encFlag);
         let a = this.readMessage(decrypted);
         if (a) {
-            if (this.app.cnf('debug').network)
-                this.app.debug("info", 'network', "< recv " + a[0] + " < " + JSON.stringify(a[1]))
+            this.app.debug("info", 'network', "< recv " + a[0] + " < " + JSON.stringify(a[1]))
             //todo get node-info by addr and get nodeKey
             let nodeKey = a[1].nodekey;
             if (!nodeKey)
@@ -115,7 +112,8 @@ protocol.prototype = {
                 type: a[0],
                 data: a[1],
                 rinfo: rinfo,
-                self: self || a[1].nodekey == this.nodeKey
+                self: self || a[1].nodekey == this.nodeKey,
+                sign: a[2]
             });
             return a[1].nodekey;
         }
@@ -164,23 +162,18 @@ protocol.prototype = {
         for (let i in list) {
 
             let socket = this.nodes.get("connection/" + list[i]);
-
-            if (this.app.cnf('debug').peers)
-                this.app.debug('info', 'network', "check peer " + list[i] + " OK: ", !(!socket || socket.destroyed === true));
+            this.app.debug('info', 'network', "check peer " + list[i] + " OK: ", !(!socket || socket.destroyed === true));
 
             if (!socket || socket.destroyed === true) {
-                if (this.app.cnf('debug').peers)
-                    this.app.debug('info', 'network', "remove peer " + list[i], !!socket, socket.destroyed !== true)
+                this.app.debug('info', 'network', "remove peer " + list[i], !!socket, socket.destroyed !== true)
                 this.app.emit("net.connection.remove", list[i]);
 
                 if (!list[i])
                     return;
 
-                if (this.app.cnf('debug').peers)
-                    this.app.debug('info', 'network', "try reconnect peer " + list[i])
+                this.app.debug('info', 'network', "try reconnect peer " + list[i])
                 this.addNode(list[i], () => {
-                    if (this.app.cnf('debug').peers)
-                        this.app.debug('info', 'network', "reconnected to peer " + list[i])
+                    this.app.debug('info', 'network', "reconnected to peer " + list[i])
                 })
             }
 
@@ -290,8 +283,8 @@ protocol.prototype = {
         var os = require('os'), process = require('process')
         var ua = "%agent%:%agent_ver%/%net%:%blockchain_ver%/%platform%:%platform_ver%/%os%:%os_ver%/%uptime%";
         return ua
-            .replace("%agent%", this.app.cnf('agent').name)
-            .replace("%agent_ver%", this.app.cnf('agent').version)
+            .replace("%agent%", this.app.getAgentName().name)
+            .replace("%agent_ver%", this.app.getAgentName().version)
             .replace("%net%", this.app.cnf('network'))
             .replace("%blockchain_ver%", this.app.cnf('consensus').version)
             .replace("%platform%", 'nodejs')

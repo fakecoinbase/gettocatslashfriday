@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const dscript = require('orwelldb').datascript;
 const BN = require('bn.js');
 
 class orwell {
@@ -20,10 +21,16 @@ class orwell {
         this.GENESIS = this.app.cnf("genesis");
         this.ADDRESS = require('./primitives/address')(app);
         this.SCRIPT = require('./primitives/script')(app);
-        this.TX = require('./primitives/tx')(app);
-        this.BLOCK = require('./primitives/block')(app);
-        this.BLOCK.VALIDATOR = require('./primitives/block/validator')(app);
-        this.TX.VALIDATOR = require('./primitives/tx/validator')(app);
+
+        let primitives = require('./primitives/index')(app);
+
+        //this.TX = require('./primitives/tx')(app);
+        //this.BLOCK = require('./primitives/block')(app);
+        //this.BLOCK.VALIDATOR = require('./primitives/block/validator')(app);
+        //this.TX.VALIDATOR = require('./primitives/tx/validator')(app);
+
+        this.TX = primitives.Transaction;
+        this.BLOCK = primitives.Block;
 
         //this entity can be loaded after db initialization.
         let BLOCKPOOL = require('./primitives/blockpool')(app);
@@ -33,11 +40,10 @@ class orwell {
         let index = require('./indexer')(app);
         let UTXO = require('./utxo')(app);
         let DSINDEX = require('./dsindex')(app);
-        let MiningWork = require('./work')(app);
+        //let MiningWork = require('./work')(app);
 
-        this.prepare();
-        if (this.app.cnf('debug').indexing)
-            this.app.debug("info", "orwell", "storage loaded, can load indexes");
+        require('./validations')(this.app, this);
+        this.app.debug("info", "index", "storage loaded, can load indexes");
 
         this.blockpool = new BLOCKPOOL();
         this.mempool = new MEMPOOL();
@@ -46,115 +52,11 @@ class orwell {
         this.index = new index();
         this.utxo = new UTXO();
         this.dsIndex = new DSINDEX();
-        this.miningWork = new MiningWork();
+        //this.miningWork = new MiningWork();
         this.checkpoint = require("./checkpoints");
         this.consensus = require("./consensus")(app, this);
         this.OVM = require("./orwellvm")(app);
     }
-    prepare() {
-
-        require('./validations')(this.app, this);
-
-        this.app.tools.bitPony.extend('orwell_block', () => {//datascript...
-
-            return {
-                read: (buffer, rawTx) => {
-                    if (typeof buffer == 'string')
-                        buffer = new Buffer(buffer, 'hex')
-
-                    if (buffer.length == 0 || !buffer)
-                        buffer = new Buffer([0x0]);
-
-                    let offset = 0, stream = new this.app.tools.bitPony.reader(buffer);
-                    let block = {}
-                    let res = stream.header(offset);
-                    offset = res.offset;
-                    block.header = res.result;
-
-                    let tx = [];
-                    for (let i = 0; i < block.header.txn_count; i++) {
-                        let startoffset = offset;
-                        res = stream.tx(offset);
-                        offset = res.offset;
-                        let tx_item = res.result;
-                        let dsstart = offset;
-
-                        if (buffer[offset] == 0xef) {//have datascript array
-                            res = stream.var_int(offset + 1)
-                            offset = res.offset;
-                            let script_cnt = res.result;
-                            let scripts = [];
-                            for (let k = 0; k < script_cnt; k++) {
-                                res = stream.string(offset);
-                                offset = res.offset;
-                                scripts.push(res.result)
-                            }
-                        } else if (buffer[offset] == 0xee) {//have datascript
-                            res = stream.uint8(offset + 1);
-                            offset = res.offset;
-                            res = stream.string(offset);
-                            offset = res.offset;
-                            res = stream.string(offset);
-                            offset = res.offset;
-                        } else if (buffer[offset] == 0xcb && buffer[offset + 1] == 0xae) {//coinbase info
-                            tx_item.datascript = "";
-
-                            let endoffset = 0;
-                            res = stream.string(offset + 2);
-                            endoffset += res.offset - offset;
-                            offset = res.offset;
-                            res = stream.string(offset);
-                            endoffset += res.offset - offset;
-                            offset = res.offset;
-                            res = stream.uint32(offset);
-                            endoffset += res.offset - offset;
-                            offset = res.offset;
-                            res = stream.var_int(offset);
-                            endoffset += res.offset - offset;
-                            offset = res.offset;
-
-                            offset += res.result;
-                            endoffset += res.result;//bytes array next
-
-                            tx_item.in[0].coinbase = buffer.slice(dsstart + 2, offset).toString('hex');
-                        }
-
-                        if (offset > dsstart && !rawTx)
-                            tx_item.datascript = buffer.slice(dsstart, offset).toString('hex');
-
-                        if (rawTx)
-                            tx_item = buffer.slice(startoffset, offset).toString('hex');
-
-                        tx.push(tx_item)
-                    }
-
-                    block.txn_count = tx.length;
-                    block.txns = tx;
-                    return block
-
-                },
-                write: (block) => {
-
-                    let header = this.app.tools.bitPony.header.write(block.version, block.prev_block || block.hashPrevBlock, block.merkle_root || block.hashMerkleRoot || block.merkle, block.time, block.bits, block.nonce);
-                    let length = this.app.tools.bitPony.var_int(block.vtx.length);
-                    let txlist = new Buffer('');
-
-                    for (let i in block.vtx) {
-                        txlist += new Buffer(block.vtx[i].toHex(), 'hex');
-                    }
-
-                    return Buffer.concat([
-                        header,
-                        length,
-                        txlist
-                    ])
-
-                }
-            }
-
-        });
-    }
-
     init() {
         return new Promise((res) => {
             this.app.setSyncState('loadFromCache');
@@ -261,24 +163,26 @@ class orwell {
         })
     }
 
-    indexBlockFromLocalStorage(data, height) {
-        if (height)
-            data.height = height;
+    indexBlockFromLocalStorage(data, h) {
+        if (h != undefined)
+            data.height = h;
 
         let d = this.index.get("block/" + data.getId());
 
-        if (!d || !d.prev) {
+        if (!d || !d.getPrevId()) {
 
             try {//if have in blockpool - just update index
                 this.getBlock(data.getId())
-                console.log("block ", data.getId(), " found in block pool");
             } catch (e) {//else - add to blockpool and etc..
-                return this.addBlockFromNetwork(null, data, '');
+                return this.addBlockFromNetwork(null, data, {
+                    chain: 'main',
+                    height: h,
+                });
             }
 
             return this.consensus.dataManager.indexData(data, {
                 chain: 'main',
-                height: height,
+                height: h,
             })
                 .then((block) => {
                     return this.updateLatestBlock(block);
@@ -288,8 +192,20 @@ class orwell {
         return Promise.resolve(data);
     }
 
-    addBlockFromNetwork(peer, data, from, cb) {
+    addBlockFromNetwork(peer, data, context, cb) {
         let b;
+
+        if (context && isFinite(context.height))
+            data.height = context.height;
+        else if (!data.height) {
+            let previd = data.getPrevId();
+            let h = this.index.get("block/" + previd);
+            if (h)
+                data.height = h.height + 1;
+            else if (previd == '0000000000000000000000000000000000000000000000000000000000000000')
+                data.height = 0;
+        }
+
         let res = this.consensus.getConsensus().applyData(peer, data);
         return res.promise
             .then((block) => {
@@ -323,8 +239,6 @@ class orwell {
                 } catch (e) {
 
                 }
-
-                //console.log('add block', block.getId(), 'prev', prev.getId(), "prevh", prevh, "h=", this.getTopInfo());
 
                 if (prevh >= this.getTopInfo().height || (prev && prev.getId() == this.index.getTop().id) || block.getId() == this.app.cnf('genesis').hash) {
                     let b = {
@@ -366,7 +280,6 @@ class orwell {
     getTimeForHeight(height) {
         let avg = 1;
         let count = 12;
-
         if (height == -1)//genesis block
             return 0;
 
@@ -375,9 +288,12 @@ class orwell {
         let i = 1;
         do {
             i++;
-            block = this.getBlock(block.hashPrevBlock);
+            block = this.getBlock(block.getPrevId());
             list.push(block);
-        } while (i < count && block.hashPrevBlock && i > 0);
+
+            if (block.getPrevId() == this.app.orwell.GENESIS.hash)
+                break;
+        } while (i < count && block && i > 0);
 
         let times = [];
         for (let i in list) {
@@ -411,14 +327,6 @@ class orwell {
 
     checkHash(hash, target) {
         return this.consensus.getConsensus().checkHash(hash, target);
-    }
-
-    getDifficulty(bits) {
-        if (!bits)
-            bits = 1;
-        let b = new BN(this.bits2target(this.app.cnf('consensus').maxtarget), 16);
-        let m = new BN(this.bits2target(bits), 16);
-        return (b.div(m).toString(10));
     }
 
     targetWeight(target) {
@@ -464,11 +372,16 @@ class orwell {
     }
 
     addToMemPool(data, trigger, fromPeer) {
-        return this.mempool.addTx(data, (tx, t, result) => {
-            if (!result) {
-                this.app.throwError("tx is invalid", tx.errors.join(","));
-            }
-        });
+        return new Promise((resolve, reject) => {
+            this.mempool.addTx(data, (tx, t, result) => {
+                if (!result) {
+                    reject(["tx is invalid: ", tx.errors.join(",")]);
+                    return;
+                }
+
+                resolve(tx);
+            });
+        })
     }
 
     removeFromMemPool(hash) {
@@ -547,7 +460,23 @@ class orwell {
     getOut(hash, index) {
         return this.consensus.dataManager.getOut(hash, index);
     }
+    getAddressBalance(address) {
+        this.utxo.checkAndUnlock(address);
+        let arr = this.utxo.get("address/" + address);
 
+        if (!arr) {
+            arr = [];
+        }
+
+        let a = 0;
+        for (let i in arr) {
+
+            if (!arr[i].spent && !arr[i].spentHash && !arr[i].locked)
+                a += arr[i].amount;
+        }
+
+        return a;
+    }
     getDatascriptList(dbname, raw, byDataset) {
 
         if (!raw && byDataset)
@@ -563,7 +492,7 @@ class orwell {
         for (let i in addrind) {
             let tx = null;
             try {
-                tx = this.consensus.dataManager.getTx(addrind[i]).toJSON();
+                tx = this.consensus.dataManager.getTx(addrind[i]).toJSON('hash');
             } catch (e) {
 
             }
@@ -571,17 +500,16 @@ class orwell {
             if (!tx)
                 continue;//its fiasco
 
-            if (!tx.datascript)
+            if (!tx.ds)
                 continue;//how,why?
 
             if (tx.coinbase)
                 continue;//can not be coinbase
 
-            let h = this.SCRIPT.sigToArray(tx.in[0].sig);
-            let publicKey = h.publicKey;
+            let publicKey = tx.s[0][1];
 
             if (!byDataset && !raw) {
-                let list = tx.datascript;
+                let list = tx.ds instanceof Array ? tx.ds : dscript.readArray(tx.ds);
                 for (let k in list) {
                     let data = new dscript(list[k]).toJSON();
                     data.writer = publicKey;
@@ -590,11 +518,65 @@ class orwell {
             }
 
             if (raw)
-                dslist.push({ ds: tx.datascript, writer: publicKey })
+                dslist.push({ ds: tx.ds, writer: publicKey })
 
         }
 
         return dslist;
+    }
+    getDatascriptMempoolList(dbname, raw, byDataset) {
+        let addrind = this.mempool.get("ds/address/" + dbname);
+        if (!addrind)
+            addrind = [];
+
+        let dscript = require('orwelldb').datascript;
+        let dslist = [];
+        if (byDataset)
+            dslist = {};
+
+        for (let i in addrind) {
+            let tx = null;
+            try {
+                tx = this.mempool.getTx(addrind[i]);
+            } catch (e) {
+
+            }
+
+            if (!tx)
+                continue;//its fiasco
+
+            if (!tx.ds)
+                continue;//how,why?
+
+            if (tx.coinbase)
+                continue;//can not be coinbase
+
+            let publicKey = tx.s[0][1];
+
+            if (!byDataset && !raw) {
+                let list = tx.ds instanceof Array ? tx.ds : dscript.readArray(tx.ds);
+                for (let k in list) {
+                    let data = new dscript(list[k]).toJSON();
+                    data.writer = publicKey;
+                    dslist.push(data);
+                }
+            } else if (!raw && byDataset) {
+                let list = tx.ds instanceof Array ? tx.ds : dscript.readArray(tx.ds);
+                for (let k in list) {
+                    let data = new dscript(list[k]).toJSON();
+                    data.writer = publicKey;
+                    if (!dslist[data.dataset])
+                        dslist[data.dataset] = [];
+                    dslist[data.dataset].push(data);
+                }
+            }
+
+            if (raw)
+                dslist.push({ ds: tx.ds, writer: publicKey })
+        }
+
+        return dslist;
+
     }
     getDatascriptSlice(dbname, dataset, limit, offset) {
         let dslist = [], actual = {}, create = false;
@@ -641,6 +623,34 @@ class orwell {
             list: items
         }
     }
+    getTokenHistory(ticker, limit, offset) {
+        let arr = this.dsIndex.getTokenHistoryAll(ticker);
+        if (!arr || !(arr instanceof Array))
+            arr = []
+
+        let items = arr.reverse().slice(offset, offset + limit);
+        return {
+            limit: limit,
+            offset: offset,
+            count: arr.length,
+            items: items.length,
+            list: items
+        }
+    }
+    getAddressTokenHistory(address, limit, offset) {
+        let arr = this.dsIndex.getAddressHistoryAll(address);
+        if (!arr || !(arr instanceof Array))
+            arr = []
+
+        let items = arr.reverse().slice(offset, offset + limit);
+        return {
+            limit: limit,
+            offset: offset,
+            count: arr.length,
+            items: items.length,
+            list: items
+        }
+    }
     getDataSetInfo(dbname, dataset, limit, offset) {
         let list = this.dsIndex.getRecords(dbname, dataset);
         let settings = this.dsIndex.getDataSetsSettingsLast(dbname, dataset);
@@ -660,6 +670,27 @@ class orwell {
             items: items.length,
             list: items
         }
+    }
+    getDomainInfo(name) {
+        if (name == 'system')
+            return this.app.cnf('orwelldb').systemKey;
+
+        let key = this.dsIndex.get("domain/" + name);
+        return key || false;
+    }
+    getKeyDomain(key) {
+        if (this.app.cnf('orwelldb').systemKey == key)
+            return 'system';
+
+        let domain = this.dsIndex.get("domain/key/" + key);
+        return domain || false;
+    }
+    getAddressDomain(address) {
+        if (this.app.cnf('orwelldb').systemAddress == address)
+            return 'system';
+
+        let domain = this.dsIndex.get("domain/address/" + address);
+        return address || false;
     }
     resolveAddress(str) {
         let val = false;
@@ -703,6 +734,66 @@ class orwell {
 
         return acc;
     }
+    deploySystemDb(account) {
+        return new Promise((resolve, reject) => {
+
+            let e1 = new dscript({
+                content: { owner_key: account.publicKey, privileges: "", writeScript: '' },
+                dataset: 'masternodes',
+                operation: 'create',
+            });
+
+            let e2 = new dscript({
+                content: { owner_key: account.publicKey, privileges: "", writeScript: '' },
+                dataset: 'domains',
+                operation: 'create',
+            });
+
+            let e3 = new dscript({
+                content: { owner_key: account.publicKey, privileges: "", writeScript: '' },
+                dataset: 'tokens',
+                operation: 'create',
+            });
+
+            let hex = dscript.writeArray([e1.toHEX(), e2.toHEX(), e3.toHEX()]);
+            this.app.wallet.sendFromAddress(account.address, this.app.cnf('orwelldb').systemAddress, 0, hex)
+                .then((result) => {
+                    resolve(result.hash);
+                })
+                .catch((e) => {
+                    reject({
+                        error: e,
+                        code: this.app.rpc.INVALID_RESULT
+                    });
+                })
+
+        });
+
+        //masternodes content: {key: 'pubkey', priority: 0}
+        //domains content: {domain:'domain-name', key: 'pubkey'}
+        //tokens content: {ticker: 'name', address: 'addr', emission: '', isStock: true/false, title: ''}
+
+        /*return new Promise((resolve, reject) => {
+
+
+            this.createDb(account, this.app.cnf('orwelldb').systemAddress, 'masternodes')
+                .then((hash) => {
+                    hashes.push(hash);
+                    return this.createDb(account, this.app.cnf('orwelldb').systemAddress, 'domains')
+                })
+                .then((hash) => {
+                    hashes.push(hash);
+                    return this.createDb(account, this.app.cnf('orwelldb').systemAddress, 'tokens')
+                }).then((hash) => {
+                    hashes.push(hash);
+                    resolve(hashes);
+                })
+            //write first datas after
+
+        });*/
+
+
+    }
     createDb(accFrom, addressto, dataset, privileges, writeScript) {
         return new Promise((resolve, reject) => {
             if (!privileges)
@@ -717,90 +808,392 @@ class orwell {
             let hex = e.toHEX();
             hex = dscript.writeArray([hex]);
 
-            let result = app.wallet.sendFromAddress(accFrom.address, addressto, 0, hex);
-            if (result.status) {
-                resolve(result.hash, null);
-            } else {
-                resolve(null, { code: -1, message: result });
-            }
+            this.app.wallet.sendFromAddress(accFrom.address, addressto, 0, hex)
+                .then((result) => {
+                    resolve(result.hash);
+                })
+                .catch((e) => {
+                    if (typeof e == 'string')
+                        resolve(e);
+                    else
+                        reject({
+                            error: e,
+                            code: this.app.rpc.INVALID_RESULT
+                        });
+                })
+
         });
     }
-    writeDb(accFrom, addressTo, dataset, content) {
-        let dbname = app.orwell.ADDRESS.getPublicKeyHashByAddress(accFrom.address).toString('hex');
+    writeMultiDb(accFrom, addrAmountObj, dbAddress, dataset, contentArr) {
+        return this.writeDb(accFrom, addrAmountObj, dataset, contentArr, dbAddress)
+    }
+    writeDb(accFrom, addressTo, dataset, content, dbAddress) {//addressTo can be object addr=>amount, in this case we use dbAddress
+        let dbname = null;
+        if (typeof addressTo == 'object' && content instanceof Array && content.length) { //multi address addr=>amount
+            let ad = dbAddress;
+            dbname = this.ADDRESS.getPublicKeyHashByAddress(ad).toString('hex');
+        } else
+            dbname = this.ADDRESS.getPublicKeyHashByAddress(addressTo).toString('hex');
+        return new Promise((resolve, reject) => {
+            this.OVM.syncdb(dbname)
+                .then(() => {
+
+                    this.OVM.export(dbname, accFrom.publicKey, (db) => {
+                        let arr = [];
+                        try {
+                            for (let i in content) {
+                                arr.push(db.write(dataset, content[i]))
+                            }
+                        } catch (e) {
+                            reject(e);
+                            return;
+                        }
+
+                        return Promise.all(arr)
+                            .then((res) => {
+                                return Promise.resolve(res);
+                            })
+                    })
+                        .then((hex) => {
+                            //todo: rollback changes in db on send-error
+                            if (hex == 'ef00') {
+                                reject({
+                                    error: 'ds is not valid',
+                                    code: this.app.rpc.INVALID_RESULT
+                                }, null);
+                                return;
+                            }
+
+                            if (typeof addressTo == 'object') {
+                                this.app.wallet.sendMultiFromAddress(accFrom.address, addressTo, hex)
+                                    .then((result) => {
+                                        resolve(result.hash);
+                                    })
+                                    .catch((e) => {
+                                        reject({
+                                            error: e,
+                                            code: this.app.rpc.INVALID_RESULT
+                                        });
+                                    })
+                            } else
+                                this.app.wallet.sendFromAddress(accFrom.address, addressTo, 0, hex)
+                                    .then((result) => {
+                                        resolve(result.hash);
+                                    })
+                                    .catch((e) => {
+                                        reject(e);
+                                    })
+
+                        })
+                        .catch(function (e) {
+                            console.log(e);
+                            reject("catched: " + e.message);
+                        })
+                })
+        });
+    }
+    sendToken(ticker, accountFrom, addressTo, amount) {
+
         return new Promise((resolve, reject) => {
 
-            app.orwell.OVM.export(dbname, accFrom.publicKey, (db) => {
-                let arr = [];
-                try {
-                    for (let i in content) {
-                        arr.push(db.write(dataset, content[i]))
-                    }
-                } catch (e) {
-                    resolve(null, e);
-                    return;
-                }
+            let tokenaddress = this.dsIndex.get("token/" + ticker);
 
-                return Promise.all(arr)
-                    .then((res) => {
-                        return Promise.resolve(res);
-                    })
-            })
-                .then((hex) => {
-                    //todo: rollback changes in db on send-error
+            if (!tokenaddress) {
+                reject({
+                    error: "Token " + ticker + "  is not found",
+                    code: this.app.rpc.INVALID_RESULT
+                });
+                return;
+            }
 
-                    if (hex == 'ef00') {
-                        resolve(null, {
-                            error: 'ds is not valid',
-                            code: app.rpc.INVALID_RESULT
-                        }, null);
-                        return;
-                    }
+            let senderBalance = this.dsIndex.get(accountFrom.address + "/token/" + ticker);
+            if (senderBalance < amount) {
+                reject({
+                    error: "Sender dont have " + ticker + " tokens",
+                    code: this.app.rpc.INVALID_RESULT
+                });
+                return;
+            }
 
-                    let result = app.wallet.sendFromAddress(accFrom.address, addressTo, 0, hex);
-                    if (result.status) {
-                        resolve(result.hash);
-                    } else
-                        resolve(null, {
-                            error: result,
-                            code: app.rpc.INVALID_RESULT
-                        });
+            if (!this.ADDRESS.isValidAddress(addressTo)) {
+                reject({
+                    error: "Address to is not valid",
+                    code: this.app.rpc.INVALID_RESULT
+                });
+                return;
+            }
+
+            let opts = this.dsIndex.get("token/data/" + ticker);
+            if (amount <= 0 || amount > opts.emission) {
+                reject({
+                    error: "Amount is not valid",
+                    code: this.app.rpc.INVALID_RESULT
+                });
+                return;
+            }
+
+            return this.writeDb(accountFrom, tokenaddress, 'token', [{
+                from: accountFrom.address,
+                to: addressTo,
+                amount: amount
+            }])
+                .then((res) => {
+                    resolve(res);
+                })
+                .catch((err) => {
+                    reject(err);
+                })
+
+        });
+
+    }
+    createToken(acc, tokenAccount, ticker, content) {
+        let hashes = [];
+
+        return new Promise((resolve, reject) => {
+            this.OVM.syncdb(this.getSystemDb())
+                .then(() => {
+                    let data = {
+                        ticker: ticker,
+                        address: tokenAccount.address,
+                        emission: content.emission,
+                        isStock: content.isStock || false,
+                        title: content.title || ticker
+                    };
+
+                    if (content.isStock)
+                        data.share = content.share || 0.3;
+
+                    return this.writeDb(acc, this.getSystemAddress(), 'tokens', [data])
+                })
+                .then((result, error) => {
+                    if (!result) return this.app.rpc.error(this.app.rpc.INVALID_PARAMS, error.message);
+                    hashes.push(result);
+                    return this.createDb(acc, tokenAccount.address, 'token')
+                })
+                .then((result, error) => {
+                    if (!result && error) return this.app.rpc.error(this.app.rpc.INVALID_PARAMS, error.message);
+                    if (result)
+                        hashes.push(result);
+                    return this.writeDb(acc, tokenAccount.address, 'token', [{//initial pay
+                        from: tokenAccount.address,
+                        to: tokenAccount.address,
+                        amount: content.emission
+                    }])
 
                 })
-                .catch(function (e) {
-                    resolve(null, e);
+                .then((result, error) => {
+                    if (!result && error) return this.app.rpc.error(this.app.rpc.INVALID_PARAMS, error.message);
+                    if (result)
+                        hashes.push(result);
+                    resolve(hashes)
                 })
+                .catch((err) => {
+                    reject(err)
+                })
+        })
+    }
+    payStockHolders(ticker, acc, amount) {
+        return new Promise((resolve, reject) => {
+
+            let tokenaddress = this.dsIndex.get("token/" + ticker);
+            let opts = this.dsIndex.get('token/data/' + ticker);
+
+            if (!tokenaddress) {
+                reject({
+                    error: "Token " + ticker + "  is not found",
+                    code: this.app.rpc.INVALID_RESULT
+                });
+                return;
+            }
+
+            let holders = this.dsIndex.getTokenHolders(ticker);
+            let shareAmount = amount * (opts.share ? opts.share : 0.3);
+            let profitAmount = amount - shareAmount;
+            if (profitAmount < 0) {
+                reject({
+                    error: "Profit of stock address must be bigger or equal then 0",
+                    code: this.app.rpc.INVALID_RESULT
+                });
+                return;
+            }
+
+            let shares = {};
+            for (let k in holders) {
+                let balanceToken = this.getTokenAddressAmount(ticker, holders[k]);
+                shares[holders[k]] = (balanceToken / opts.emission) * shareAmount * this.app.cnf('consensus').satoshi;
+            }
+
+            //write to history pay dividends with to = 0.
+
+            shares[tokenaddress] += profitAmount * this.app.cnf('consensus').satoshi;//tokenowner is tokenholdertoo + profit go to wallet
+            return this.writeMultiDb(acc, shares, tokenaddress, 'token', [{
+                from: acc.address,
+                to: 0,
+                amount: amount,
+                share: shareAmount
+            }])
+                .then((res) => {
+                    resolve(res);
+                })
+                .catch((err) => {
+                    reject(err);
+                })
+
+        });
+    }
+    addMasternode(account) {
+        return new Promise((resolve, reject) => {
+
+            let mn = this.dsIndex.get("masternode/" + account.publicKey);
+            if (mn) {
+                reject({
+                    error: "Masternode already exist",
+                    code: this.app.rpc.INVALID_RESULT
+                });
+                return;
+            }
+
+            return this.writeDb(account, this.getSystemAddress(), 'masternode', [{
+                key: account.publicKey,
+                priority: 0
+            }])
+                .then((res) => {
+                    resolve(res);
+                })
+                .catch((err) => {
+                    reject(err);
+                })
+
+        });
+    }
+    updateMasternodes(account, masternodesvalues) {//only for active validator, else will return reject.
+        return new Promise((resolve, reject) => {
+
+            return this.writeDb(account, this.getSystemAddress(), 'masternode', masternodesvalues)
+                .then((res) => {
+                    resolve(res);
+                })
+                .catch((err) => {
+                    reject(err);
+                })
+
+        });
+    }
+    createDomain(account, domain, pubkey) {
+        return new Promise((resolve, reject) => {
+
+            let mn = this.dsIndex.get("domain/" + domain);
+            if (mn) {
+                reject({
+                    error: "Domain already exist",
+                    code: this.app.rpc.INVALID_RESULT
+                });
+                return;
+            }
+
+            mn = this.dsIndex.get("domain/key/" + pubkey);
+            if (mn) {
+                reject({
+                    error: "Address already have domain",
+                    code: this.app.rpc.INVALID_RESULT
+                });
+                return;
+            }
+
+            return this.writeDb(account, this.getSystemAddress(), 'domains', [{
+                domain: domain,
+                key: pubkey
+            }])
+                .then((res) => {
+                    resolve(res);
+                })
+                .catch((err) => {
+                    reject(err);
+                })
+
         });
     }
     getSystemAddress() {
-        return app.cnf('orwelldb').systemAddress;
+        return this.app.cnf('orwelldb').systemAddress;
     }
     getSystemDb() {
-        return app.orwell.ADDRESS.getPublicKeyHashByAddress(this.getSystemAddress()).toString('hex');
+        return this.ADDRESS.getPublicKeyHashByAddress(this.getSystemAddress()).toString('hex');
     }
-    getDomainAddress(address) {
-        if (address == this.app.cnf("orwelldb").systemAddress)
+    getDomainsList() {
+        return this.dsIndex.getDomainsList();
+    }
+    getDomainAddress(addressOrPubKey) {
+        if (addressOrPubKey == this.app.cnf("orwelldb").systemAddress)
             return 'system'
 
-        return false;
+        let one = this.dsIndex.get("domain/key/" + addressOrPubKey);
+        let two = this.dsIndex.get("domain/address/" + addressOrPubKey) || false;
+        return one ? one : two;
     }
-    resolveDomain(address) {
-        if (address == this.app.cnf("orwelldb").systemAddress)
+    resolveDomain(addressOrPubKey) {
+        if (addressOrPubKey == this.app.cnf("orwelldb").systemAddress)
             return 'system';
 
         //find domain by address
+        let one = this.dsIndex.get("domain/key/" + addressOrPubKey);
+        let two = this.dsIndex.get("domain/address/" + addressOrPubKey) || false;
+        return one ? one : two;
     }
-    getTokenList(){
-        //todo
+    resolveDomainName(domain) {
+        if (domain == 'system')
+            return this.app.cnf("orwelldb").systemKey;
+
+        return this.dsIndex.get("domain/" + domain);
     }
-    getTokenAmount(dbname, publicKey) {
-        //todo index token and domain into dsIndex
-        let addr = this.ADDRESS.generateAddressFromPublicKey(publicKey);
-        let ticker = this.dsIndex.get("token/address/" + dbname);
-        return this.dsIndex.get(addr + "/token/" + ticker);
+    getTokenList(limit, offset) {
+        let list = this.dsIndex.getTokenList();
+        let items = list.slice(offset, offset + limit);
+
+        let obj = {};
+        for (let i in list) {
+            obj[list[i]] = this.dsIndex.get("token/data/" + list[i]);
+            obj[list[i]].holders = this.dsIndex.get("token/holders/" + list[i]).length || 1;
+        }
+
+        return {
+            limit: limit,
+            offset: offset,
+            count: Object.keys(list).length,
+            items: items.length,
+            list: obj
+        }
+
     }
-    getTokenAddressAmount(dbname, address) {
-        let ticker = this.dsIndex.get("token/address/" + dbname);
-        return this.dsIndex.get(address + "/token/" + ticker);
+    getTokenTicker(address) {
+        return this.dsIndex.getTokenTicker(address);
+    }
+    getTokenAddress(ticker) {
+        return this.dsIndex.getTokenAddress(ticker);
+    }
+    getTokenAddressAmount(token, address) {
+        return this.dsIndex.getTokenBalance(token, address);
+    }
+    getTokenAddressHistory(token, address) {
+        return this.dsIndex.getTokenHistory(token, address);
+    }
+    getTokensAddressAmount(address) {
+        return this.dsIndex.getTokensBalance(address);
+    }
+    getTokensAddressHistory(address) {
+        return this.dsIndex.getTokensHistory(address);
+    }
+    getConsensus() {
+        let lastRound = this.consensus.roundManager.getLastState();
+        let nextRound = {
+            validators: this.consensus.roundManager.getValidatorsList(),
+            cursor: 0
+        };
+
+        return {
+            last: lastRound,
+            next: nextRound
+        }
     }
 
 }

@@ -10,7 +10,7 @@ module.exports = (app) => {
             if (!offset)
                 offset = 0
 
-            return this.coll.chain().find().simplesort('time', true).offset(offset).limit(limit).data();
+            return this.coll.chain().find().simplesort('t', true).offset(offset).limit(limit).data();
         }
         findBlocks(fields) {
             return this.coll.chain().find(fields).data();

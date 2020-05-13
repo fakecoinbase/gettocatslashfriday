@@ -1,0 +1,106 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+<script type='text/javascript'>
+
+function toggleStock(e){
+    if (e.value <= 0){
+        $(".stockvals").addClass('hide')
+    } else 
+        $(".stockvals").removeClass('hide')
+
+    return false;
+}
+
+</script>
+
+	<form action='' method='POST'>
+
+		{% if error %}
+			<div class='alert alert-warning'>
+				{{error}}
+			</div>
+		{% endif %}
+
+		<div class="form-group row">
+			<label for="from" class="col-sm-2 col-form-label">Account send from</label>
+			<div class="col-sm-10">
+				<select name='from' class="form-control" id="from">
+					{% for addr in addressess %}
+						<option {% if data.from == addr.name %} selected {% endif %} value='{{addr.name}}'>{{addr.name}}
+							[
+							{{addr.balancehr}}
+							]</option>
+					{% endfor %}
+				</select>
+			</div>
+		</div>
+
+
+		<div class="form-group row">
+			<label for="account" class="col-sm-2 col-form-label">Account for token assign</label>
+			<div class="col-sm-10">
+				<select name='account' class="form-control" id="account">
+					{% for addr in addressess %}
+						{% if addr.domain %}
+							{% else %}
+								<option {% if data.account == addr.name %} selected {% endif %} value='{{addr.name}}'>{{addr.name}}
+									[
+									{{addr.balancehr}}
+									]</option>
+						{% endfor %}
+					{% endfor %}
+				</select>
+			</div>
+		</div>
+
+
+		<div class="form-group row">
+			<label for="ticker" class="col-sm-2 col-form-label">Ticker</label>
+			<div class="col-sm-10">
+				<input type='text' id='ticker' name='ticker' class='form-control' value='{{data.ticker}}'>
+			</div>
+		</div>
+
+		<div class="form-group row">
+			<label for="title" class="col-sm-2 col-form-label">Title</label>
+			<div class="col-sm-10">
+				<input type='text' id='title' name='title' class='form-control' value='{{data.title}}'>
+			</div>
+		</div>
+
+		<div class="form-group row">
+			<label for="emission" class="col-sm-2 col-form-label">Emission</label>
+			<div class="col-sm-10">
+				<input type='text' id='emission' name='emission' class='form-control' value='{{data.emission}}'>
+			</div>
+		</div>
+
+		<div class="form-group row">
+			<label for="isStock" class="col-sm-2 col-form-label">Is Stock</label>
+			<div class="col-sm-10">
+				<select onchange='return toggleStock(this)' id='isStock' name='isStock' class='form-control'>
+					<option {% if data.isStock %} selected {% endif %} value='1'>Yes</option>
+					<option {% if not data.isStock %} selected {% endif %} value='0'>No</option>
+				</select>
+			</div>
+		</div>
+
+		<div class="stockvals hide form-group row">
+			<label for="share" class="col-sm-2 col-form-label">Stock owner share</label>
+			<div class="col-sm-10">
+				<input type='text' id='share' name='share' class='form-control' value='{{data.share??0.3}}'>
+			</div>
+		</div>
+        
+		<div class="form-group row">
+			<label class="col-sm-2 col-form-label"></label>
+			<div class="col-sm-10">
+				<input type='submit' class='btn btn-success' value='Create token'>
+			</div>
+		</div>
+
+	</form>
+
+{% endblock %}

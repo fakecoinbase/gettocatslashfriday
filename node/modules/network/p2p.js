@@ -13,8 +13,9 @@ class p2p {
         this.serverBuffer = "";
         this.clientBuffer = "";
         this.app = app;
+        let netmagic = this.app.tools.reverseBuffer(Buffer.from(this.app.cnf(this.app.cnf('network')).magic, 'hex')).toString('hex')
         //now we can change network onfly.
-        this.separator = () => { return this.app.cnf(this.app.cnf('network')).magic };
+        this.separator = () => { return netmagic };
         this.port = () => { return this.app.cnf(this.app.cnf('network')).port };
     }
     serve() {
@@ -115,17 +116,18 @@ class p2p {
         let keyValue = key == 'client' ? 'clientBuffer' : 'serverBuffer';
         let buffer = this[keyValue];
         let parts = buffer.split(this.separator());
+        
         let finished = [], unfinished = [];
         for (let i in parts) {
             if (!parts[i])
                 continue;
 
             let part = parts[i];
-            let res = this.checkBuffer(part);
+            let res = this.checkBuffer(this.separator()+part);
             if (res) {
-                finished.push(new Buffer(part, 'hex'));
+                finished.push(new Buffer(this.separator()+part, 'hex'));
             } else {
-                unfinished.unshift(part);
+                unfinished.unshift(this.separator()+part);
             }
         }
 

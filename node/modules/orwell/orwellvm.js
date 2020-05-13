@@ -37,7 +37,10 @@ module.exports = function (app) {
 
             return new Promise((resolve, reject) => {
 
-                let arr = app.orwell.getDatascriptList(dbname, true);
+                let list1 = app.orwell.getDatascriptList(dbname, true);
+                let mempoollist = app.orwell.getDatascriptMempoolList(dbname, true);
+                let arr = list1.concat(mempoollist);
+
                 let done = () => {
                     resolve();
                 }

@@ -1,5 +1,5 @@
 {
-    "name": "friday-node",
+    "name": "friday",
     "version": "0.0.1",
     "description": "Friday client",
     "main": "index.js",
@@ -11,22 +11,34 @@
         "orwell"
     ],
     "dependencies": {
+        "@nanocat/friday-serialized": "^0.0.16",
         "base-58": "^0.0.1",
+        "bitowl": "^0.0.2",
         "bitpony": "^0.0.1",
         "bloom-filter": "^0.2.0",
         "bn.js": "^4.11.8",
+        "consensusjs": "^0.0.20",
+        "date-format": "^3.0.0",
+        "ecdsa-csr": "^1.1.1",
         "elliptic": "^6.5.1",
+        "evil-dns": "^0.2.0",
+        "express": "^4.17.1",
         "hash.js": "^1.1.3",
+        "http-errors": "^1.7.3",
+        "humanize-duration": "^3.22.0",
         "int64-buffer": "^0.1.9",
+        "key-encoder": "^2.0.3",
         "lokijs": "^1.5.7",
         "merkle-tools": "^1.4.0",
         "minimist": "^1.2.0",
+        "morgan": "^1.10.0",
         "n64": "^0.1.2",
         "node-json-rpc": "^0.0.1",
         "orwelldb": "^0.0.14",
         "tiny-worker": "^2.2.0",
-        "consensusjs": "^0.0.14",
-        "bitowl": "^0.0.2"
+        "twig": "^1.15.1",
+        "updns": "^1.3.1",
+        "parse-raw-http": "^0.0.1"
     },
     "author": {
         "name": "Nanocat <gettocat@github.com>",

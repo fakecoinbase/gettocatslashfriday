@@ -28,6 +28,19 @@ class wallet {
         } else
             return this.findAddrByAccount(id);
     }
+    importPrivateKey(privateKey, accountName) {
+        let obj = this.findAddrByAccount(accountName);
+        if (obj)
+            return obj;
+
+        let publicKey = this.app.crypto.getPublicByPrivate(privateKey);
+        let addr = this.app.orwell.ADDRESS.generateAddressFromPublicKey(publicKey);
+        obj = { hash: accountName, added: new Date().getTime() / 1000, address: addr, publicKey: publicKey, privateKey: privateKey };
+
+        this.db.save(obj)
+        this.addDataListener(publicKey);
+        return obj
+    }
     haveAccount(id) {
         return !!this.findAddrByAccount(id);
     }
@@ -68,20 +81,24 @@ class wallet {
         let obj = this.db.getCollection().chain().find({ address: address }).simplesort('added', true).limit(1).data({ removeMeta: true });
         return obj[0];
     }
-    getAddressUnspent(addr) {
+    getAddressUnspent(addr, height) {
         let utxo = this.app.orwell.utxo.checkAndUnlock(addr);
         let arr = this.app.orwell.utxo.get("address/" + addr);
-        
+
         if (!arr) {
             arr = [];
         }
 
-
         let a = [];
         for (let i in arr) {
 
-            if (!arr[i].spent && !arr[i].spentHash && !arr[i].locked)
-                a.push(arr[i]);
+            if (!arr[i].spent && !arr[i].spentHash && !arr[i].locked) {
+                if (height) {
+                    if (arr[i] < height)
+                        a.push(arr[i]);
+                } else
+                    a.push(arr[i]);
+            }
         }
 
         return a;
@@ -107,24 +124,33 @@ class wallet {
 
         return addr;
     }
+    getAddressBalance(address, height) {
+        let unspent = this.getAddressUnspent(address);
+
+        let amount = new this.app.tools.BN(0);
+        for (let i in unspent) {
+            amount.iadd(new this.app.tools.BN(unspent[i].amount))
+        }
+        return amount.toString(10);
+    }
     getBalance(id) {
         let addresses = this.getAccountAddresses(id)
         let unspent = this.getAddressessUnspent(addresses);
-        
-        let amount = 0;
+
+        let amount = new this.app.tools.BN(0);
         for (let i in unspent) {
-            amount += unspent[i].amount
+            amount.iadd(new this.app.tools.BN(unspent[i].amount))
         }
-        return amount
+        return amount.toString(10);
     }
     getBalanceAddress(address) {
-        let arr = this.getAddressUnspent(address), balance = 0;
+        let arr = this.getAddressUnspent(address), balance = new this.app.tools.BN(0);
 
         for (let i in arr) {
-            balance += arr[i].amount;
+            balance.iadd(new this.app.tools.BN(arr[i].amount))
         }
 
-        return balance;
+        return balance.toString(10);
     }
     getAddressessUnspent(arr) {
         let res = [];
@@ -219,7 +245,6 @@ class wallet {
             inputs.push({
                 hash: res.outs[i].tx,
                 index: res.outs[i].index,
-                sequence: 0xffffffff,
                 prevAddress: prevout.address,
             })
         }
@@ -227,7 +252,7 @@ class wallet {
         let outputs = [];
         outputs.push({
             amount: amount,
-            scriptPubKey: this.app.orwell.SCRIPT.addressToScript(address_destination)
+            address: address_destination
         });
 
         let changeaddress;
@@ -241,7 +266,7 @@ class wallet {
 
         outputs.push({
             amount: res.change,
-            scriptPubKey: this.app.orwell.SCRIPT.addressToScript(changeaddress.address)
+            address: changeaddress.address
         });
 
         let tx = this.app.orwell.TX.createFromRaw(inputs, outputs, privates, 0, this.app.cnf('consensus').txversion, datascript);
@@ -347,19 +372,16 @@ class wallet {
                 }
 
             privates.push(addrinfo.privateKey);
-
             inputs.push({
                 hash: res.outs[i].tx,
                 index: res.outs[i].index,
-                sequence: 0xffffffff,
-                prevAddress: prevout.address,
             })
         }
 
         let outputs = [];
         outputs.push({
             amount: amount,
-            scriptPubKey: this.app.orwell.SCRIPT.addressToScript(address_destination)
+            address: address_destination
         })
 
         let changeaddress = this.findAccountByAddr(address);//change addressess is not working for datascript transactions
@@ -369,10 +391,10 @@ class wallet {
 
         outputs.push({
             amount: res.change,
-            scriptPubKey: this.app.orwell.SCRIPT.addressToScript(changeaddress.address)
+            address: changeaddress.address
         })
 
-        let tx = this.app.orwell.TX.createFromRaw(inputs, outputs, privates, 0, this.app.cnf('consensus').txversion, datascript);
+        let tx = this.app.orwell.TX.createFromRaw(inputs, outputs, privates, this.app.cnf('consensus').txversion, datascript);
         return tx;
 
     }
@@ -417,7 +439,6 @@ class wallet {
             inputs.push({
                 hash: res.outs[i].tx,
                 index: res.outs[i].index,
-                sequence: 0xffffffff,
                 prevAddress: prevout.address,
             })
         }
@@ -426,21 +447,20 @@ class wallet {
         for (let i in addr_amount_arr) {
             outputs.push({
                 amount: addr_amount_arr[i],
-                scriptPubKey: this.app.orwell.SCRIPT.addressToScript(i)
+                address: i
             })
         }
 
         let changeaddress = this.findAccountByAddr(addressfrom);//change addressess is not working for datascript transactions
-
         if (!changeaddress.address)
             throw new Error('cant create new address');
 
         outputs.push({
             amount: res.change,
-            scriptPubKey: this.app.orwell.SCRIPT.addressToScript(changeaddress.address)
+            address: changeaddress.address
         })
 
-        let tx = this.app.orwell.TX.createFromRaw(inputs, outputs, privates, 0, this.app.cnf('consensus').txversion, datascript);
+        let tx = this.app.orwell.TX.createFromRaw(inputs, outputs, privates, this.app.cnf('consensus').txversion, datascript);
         return tx;
 
     }
@@ -452,8 +472,8 @@ class wallet {
         let operationFee = 0;
 
         let data = tx.toJSON();
-        if (data.datascript) {
-            let scripts = data.datascript;
+        if (data.ds) {
+            let scripts = dscript.readArray(data.ds);
             for (let i in scripts) {
                 let d = new dscript(scripts[i]);
                 let f = d.toJSON();
@@ -464,41 +484,45 @@ class wallet {
         return bytes * this.fee + operationFee;
     }
     sendFromAddress(addr, address_destination, amount, datascript) {
+        let promise = Promise.resolve();
         let tx = this.createTransactionFromAddress(addr, address_destination, amount, datascript, amount * 0.01);
-        if (tx.status == false)
-            return tx;
+
+        if (tx.error)
+            return Promise.reject(tx);
 
         //create transaction with new amount (with fee)
         let fee = this.calculateFee(tx);
         tx = this.createTransactionFromAddress(addr, address_destination, amount, datascript, fee);
-
-        if (tx.status == false)
-            return tx;
-
-        let hash;
+        if (tx.error)
+            return Promise.reject(tx);
+            
         if (tx.isValid()) {
-            hash = tx.send();
-            this.makesUnspentLocked(tx);
+            promise = this.makesUnspentLocked(tx)
+                .then(() => {
+                    return tx.send();
+                })
         } else {
-            return {
+            return Promise.reject({
                 status: false,
                 code: 'notvalid',
                 errors: tx.getLastErrorCodes()
-            }
+            });
         }
 
-        return {
-            fee: fee,
-            status: true,
-            code: 1,
-            hash: hash,
-            tx: tx
-        }
+        return promise.then((hash_) => {
+            return Promise.resolve({
+                fee: fee,
+                status: true,
+                code: 1,
+                hash: hash_,
+                tx: tx
+            });
+        });
     }
     send(account_id, address_destination, amount, datascript) {
         let tx = this.createTransaction(account_id, address_destination, amount, datascript, 0);
 
-        if (tx.status == false)
+        if (tx.error)
             return tx;
 
         //create transaction with new amount (with fee) 
@@ -510,12 +534,14 @@ class wallet {
 
         let hash;
         if (tx.isValid()) {
-            hash = tx.send();
-            this.makesUnspentLocked(tx);
+            this.makesUnspentLocked(tx)
+                .then(() => {
+                    hash = tx.send();
+                })
         } else {
             return {
                 status: false,
-                code: tx.validation_errors.join(", ")
+                code: tx.getLastErrorCodes().join(", ")
             }
         }
 
@@ -530,14 +556,14 @@ class wallet {
     sendMulti(account_id, addr_amount_arr, datascript) {
         let tx = this.createMultiTransaction(account_id, addr_amount_arr, datascript, 0);
 
-        if (tx.status == false)
+        if (tx.error)
             return tx;
 
         //create transaction with new amount (with fee)
         let fee = this.calculateFee(tx);
         tx = this.createMultiTransaction(account_id, addr_amount_arr, datascript, fee);
 
-        if (tx.status == false)
+        if (tx.error)
             return tx;
 
         let hash;
@@ -561,61 +587,76 @@ class wallet {
 
     }
     sendMultiFromAddress(addr, addr_amount_arr, datascript) {
-        let tx = this.createMultiTransactionFromAddress(addr, addr_amount_arr, datascript, 0);
-
-        if (tx.status == false)
-            return tx;
+        let amount = 0;
+        for (let k in addr_amount_arr) {
+            amount += addr_amount_arr[k];
+        }
 
         //create transaction with new amount (with fee)
+        let tx = this.createMultiTransactionFromAddress(addr, addr_amount_arr, datascript, amount * 0.01);
+        if (tx.error)
+            return Promise.reject(tx);
+
         let fee = this.calculateFee(tx);
-        tx = null;
+
+        let promise = Promise.resolve();
         tx = this.createMultiTransactionFromAddress(addr, addr_amount_arr, datascript, fee);
 
-        if (tx.status == false)
-            return tx;
+        if (tx.error)
+            return Promise.reject(tx);
 
-        let hash;
         if (tx.isValid()) {
-            hash = tx.send();
-            this.makesUnspentLocked(tx);
+            promise = this.makesUnspentLocked(tx)
+                .then(() => {
+                    return tx.send();
+                })
         } else {
-            return {
+            return Promise.reject({
                 status: false,
-                code: tx.validation_errors.join(', ')
-            }
+                code: 'notvalid',
+                errors: tx.getLastErrorCodes()
+            });
         }
 
-        return {
-            fee: fee,
-            status: true,
-            code: 1,
-            hash: hash,
-            tx: tx
-        }
+        return promise.then((hash_) => {
+            return Promise.resolve({
+                fee: fee,
+                status: true,
+                code: 1,
+                hash: hash_,
+                tx: tx
+            });
+        });
     }
     makesUnspentLocked(tx) {
-        let t = tx.toJSON();
+        let t = tx.toJSON('hash');
         let changed = 0;
-        for (let i in tx['inputs']) {
-            let inp = tx['inputs'][i];
-            let addrind = this.app.orwell.utxo.get("address/" + inp.prevAddress);
-            if (!addrind || !(addrind instanceof Array))
-                addrind = [];
+        let promise = Promise.resolve();
+        for (let i in t.in) {
+            promise = promise.then(() => {
+                let inp = t.in[i];
+                let pubkey = t.s[i][1];
+                let writer = this.app.orwell.ADDRESS.generateAddressFromPublicKey(pubkey);
 
-            for (let i in addrind) {
-                if (addrind[i].tx == inp.hash && addrind[i].index == inp.index) {
-                    addrind[i].spentHash = t.hash;
-                    addrind[i].spent = 1;
-                    addrind[i].locked = 1;
-                    changed++;
-                    break;
+                let addrind = this.app.orwell.utxo.get("address/" + writer);
+                if (!addrind || !(addrind instanceof Array))
+                    addrind = [];
+
+                for (let k in addrind) {
+                    if (addrind[k].tx == inp.hash && addrind[k].index == inp.index) {
+                        addrind[k].spentHash = t.hash;
+                        addrind[k].spent = 1;
+                        addrind[k].locked = 1;
+                        changed++;
+                        break;
+                    }
                 }
-            }
 
-            this.app.orwell.utxo.set("address/" + inp.prevAddress, addrind);
+                return this.app.orwell.utxo.set("address/" + writer, addrind);
+            })
         }
 
-        return changed;
+        return promise;
     }
 }
 

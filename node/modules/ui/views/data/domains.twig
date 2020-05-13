@@ -1,0 +1,54 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+
+	<a href='/data/domain/create' class='btn btn-primary'>Create new domain</a><br /><br />
+
+	<form action='' method='GET' class="form-inline">
+		<div class="form-group">
+			<label for="domain">Search domain</label>
+			<input type="text" value='{{q}}' name='q' id="domain" class="form-control mx-sm-3" aria-describedby="domainInline">
+			<input type='submit' value='Search' class='btn btn-primary'>
+		</div>
+	</form>
+
+	{% if q %}
+		<h3>Search result</h3>
+
+		<table class='table table-bordered table-responsive'>
+
+			<tr class='text-center'>
+
+				<th>Domain</th>
+				<th>Registered</th>
+				<th>Additional data</th>
+
+			</tr>
+
+			<tr class='text-center'>
+
+				<td>{{domain.domain}}</td>
+				<td>
+					{% if domain.registered %}Yes{% else %}No
+					{% endif %}
+				</td>
+				<td>
+					Key:
+					{% if domain.key %}
+						<a href='/explorer/address/{{domain.key}}'>{{domain.key}}</a>
+					{% endif %}
+				</td>
+
+			</tr>
+
+		</table>
+
+	{% else %}
+
+		{% for dom in domains %}
+			{{dom}}
+		{% endfor %}
+
+	{% endif %}
+
+{% endblock %}

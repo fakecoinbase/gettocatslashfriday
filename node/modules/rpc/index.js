@@ -6,6 +6,10 @@ class Rpc {
         this.app = app;
         this.serv = null;
         this.methods = [];
+        this.handlers = [];
+
+        this.INVALID_RESULT = 0x1;
+        this.INVALID_PARAMS = 0x2;
     }
     init() {
         if (this.app.cnf('rpc').useServer)
@@ -20,9 +24,7 @@ class Rpc {
         return ([null, data])
     }
     addMethod(name, callback) {
-        if (this.app.cnf('debug').rpc)
-            this.app.debug("info", "rpc", "add method handler", name);
-
+        this.app.debug("info", "rpc", "add method handler", name);
         this.methods[name] = callback;
     }
     start() {
@@ -31,15 +33,12 @@ class Rpc {
 
             this.updateMethods();
             this.serv.start((error) => {
-                if (this.app.cnf('debug').rpc)
-                    this.app.debug("info", "rpc", "starting server: " + ((error) ? "fail" : "success"))
+                this.app.debug("info", "rpc", "starting server: " + ((error) ? "fail" : "success"))
 
                 if (error)
                     throw error;
                 else {
-                    if (this.app.cnf('debug').rpc)
-                        this.app.debug("info", "rpc", 'RPC server running ...');
-
+                    this.app.debug("info", "rpc", 'RPC server running ...');
                     this.app.emit("rpc.server.start", this.serv)
                 }
             });
@@ -52,7 +51,6 @@ class Rpc {
         if (!params)
             params = [];
 
-        //if (this.app.cnf('debug').rpc)
         this.app.debug("info", "rpc", 'handled ' + name);
 
         let res = this.methods[name](params, cb)
@@ -73,14 +71,11 @@ class Rpc {
             this.serv.addMethod(i, cb(this._handler, this));
         }
 
-        if (this.app.cnf('debug').rpc)
-            this.app.debug("info", "rpc", "added methods " + items.join(","));
+        this.app.debug("info", "rpc", "added methods " + items.join(","));
     }
 
 
 }
 
-Rpc.INVALID_RESULT = 0x1;
-Rpc.INVALID_PARAMS = 0x2;
 
 module.exports = Rpc

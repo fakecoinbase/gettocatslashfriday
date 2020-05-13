@@ -20,12 +20,12 @@ module.exports = (app) => {
             let arr = this.get('mempooltxlist');
             if (!arr || !(arr instanceof Array))
                 arr = [];
-                console.log(arr);
+                
             return arr;
         }
         setList(arr) {
-            this.set('mempooltxlist', arr || []);
-            return arr || [];
+            return this.set('mempooltxlist', arr || []);
+            //return arr || [];
         }
         getOrderedList() {
             return this.getPriorityList();
@@ -57,29 +57,28 @@ module.exports = (app) => {
             for (let i in tx.in) {
                 let prevAddress = ((tx_in) => {
                     let out = this.app.orwell.consensus.dataManager.getOut(tx_in.hash, tx_in.index);
-                    return this.app.orwell.SCRIPT.scriptToAddr(out.scriptPubKey || out.script);
+                    return out.address;
                 })(tx.in[i])
 
                 tx.in[i].prevAddress = prevAddress;
-
             }
 
             let t = this.app.orwell.TX.fromJSON(tx);
-            t.fromHex();
 
-            if (t.coinbase) {
+            if (t.isCoinbase()) {
                 tx.errors = ['iscoinbase'];
                 cb(tx, t, false);
                 return false;
             }
 
-            if (this.get(tx.hash).hash) {
+            if (this.get(t.getHash()).hash) {
                 tx.errors = ['alreadyexist'];
                 cb(tx, t, false)
                 return;
             }
 
             if (t.isValid()) {
+                let promise = Promise.resolve();
                 let testunspent = 0;
                 for (let inp in tx.in) {
                     let test = this.get("out/" + tx.in[inp].hash + ":" + tx.in[inp].index);
@@ -95,22 +94,27 @@ module.exports = (app) => {
                     return;
                 }
 
-                if (tx.datascript) {
-                    this.addDSIndex(tx.hash, tx.out[0])
+                if (tx.ds) {
+                    promise = promise.then(() => { return this.addDSIndex(tx.hash, tx.out[0]) })
                 }
 
                 for (let o in tx.out) {
                     let out = tx.out[o];
-                    this.addOutIndex('input', tx.hash, this.app.orwell.SCRIPT.scriptToAddr(out.scriptPubKey || out.script), out.amount);
+                    promise = promise.then(() => { this.addOutIndex('input', tx.hash, out.address, out.amount); });
                 }
 
                 for (let inp in tx.in) {
                     let inpt = tx.in[inp];
                     let prevout;
                     try {
-                        this.set("out/" + inpt.hash + ":" + inpt.index, tx.hash);
-                        prevout = this.app.orwell.consensus.dataManager.getOut(inpt.hash, inpt.index);
-                        this.addOutIndex('output', tx.hash, this.app.orwell.SCRIPT.scriptToAddr(prevout.scriptPubKey || prevout.script), prevout.amount, fromNet);
+                        promise = promise.then(() => {
+                            return this.set("out/" + inpt.hash + ":" + inpt.index, tx.hash);
+                        })
+                            .then(() => {
+                                prevout = this.app.orwell.consensus.dataManager.getOut(inpt.hash, inpt.index);
+                                return this.addOutIndex('output', tx.hash, prevout.address, prevout.amount, fromNet);
+                            })
+
                     } catch (e) {
                         //search in mempool
                         console.log("input error: ", inpt.hash + ":" + inpt.index, inpt)
@@ -120,21 +124,30 @@ module.exports = (app) => {
                     }
                 }
 
-                //create TX object from json, check tx validate, add
-                list.push(tx.hash);
-                this.setList(list);
-                this.set(tx.hash, tx);
-                this.set("time/" + tx.hash, new Date().getTime() / 1000);
-                this.set("fee/" + tx.hash, t.getFee());
-                cb(tx, t, true);
+                promise
+                    .then(() => {
+
+                        //create TX object from json, check tx validate, add
+                        list.push(t.getHash());
+                        return Promise.all([
+                            this.setList(list),
+                            this.set(t.getHash(), t.toJSON('hash')),
+                            this.set("time/" + t.getHash(), new Date().getTime() / 1000),
+                            this.set("fee/" + t.getHash(), t.getFee()),
+                        ]);
+
+                    })
+                    .then(() => {
+                        cb(tx, t, true);
+                    })
             } else {
                 tx.errors = t.validation_errors;
                 cb(tx, t, false)
             }
         }
         addOutIndex(type, tx, addr, amount, events) {
-            if (this.app.cnf('debug').indexing)
-                this.app.debug('info', 'mempool', "add unconfirmed index " + addr, tx, amount)
+            let promise = Promise.resolve();
+            this.app.debug('info', 'mempool', "add unconfirmed index " + addr, tx, amount)
 
             let addreses = this.get("addresstx/" + tx);
 
@@ -142,32 +155,35 @@ module.exports = (app) => {
                 addreses = [];
 
             addreses.push(addr);
-            this.set("addresstx/" + tx, addreses);
+            return promise
+                .then(() => {
+                    return this.set("addresstx/" + tx, addreses);
+                })
+                .then(() => {
 
-            let addrind = this.get("address/" + addr);
-            if (!addrind || !(addrind instanceof Array))
-                addrind = [];
+                    let addrind = this.get("address/" + addr);
+                    if (!addrind || !(addrind instanceof Array))
+                        addrind = [];
 
-            let obj = {
-                type: type, //input||output
-                tx: tx,
-                amount: amount
-            };
-            addrind.push(obj);
+                    let obj = {
+                        type: type, //input||output
+                        tx: tx,
+                        amount: amount
+                    };
+                    addrind.push(obj);
 
-            if (events) {
-                obj.address = addr;
-                this.app.emit("chain.event.unconfirmed.address", obj)
-            }
+                    if (events) {
+                        obj.address = addr;
+                        this.app.emit("chain.event.unconfirmed.address", obj)
+                    }
 
-            this.set("address/" + addr, addrind)
-            return addrind
+                    return this.set("address/" + addr, addrind)
+                });
         }
         removeTx(txHash) {
             //remove tx from pool
             //remove address index
 
-            console.log('removeTx:', txHash);
             let promise = Promise.resolve();
 
             let list = this.getList();
@@ -194,9 +210,8 @@ module.exports = (app) => {
 
             for (let i in tx.out) {
                 let out = tx.out[i];
-                out.address = this.app.orwell.SCRIPT.scriptToAddr(out.scriptPubKey || out.script);
-                out.addrHash = this.app.orwell.SCRIPT.scriptToAddrHash(out.scriptPubKey || out.script).toString('hex');
-                promise = promise.then(() => { this.remove("ds/address/" + out.addrHash); return Promise.resolve(); });
+                let addrhash = this.app.orwell.ADDRESS.getPublicKeyHashByAddress(out.address).toString('hex');
+                promise = promise.then(() => { this.remove("ds/address/" + addrhash); return Promise.resolve(); });
             }
 
 
@@ -223,8 +238,8 @@ module.exports = (app) => {
             return 0;
         }
         addDSIndex(txid, out) {
-            out.address = this.app.orwell.SCRIPT.scriptToAddr(out.scriptPubKey || out.script);
-            out.addrHash = this.app.orwell.SCRIPT.scriptToAddrHash(out.scriptPubKey || out.script).toString('hex');
+            out.address = out.address;
+            out.addrHash = this.app.orwell.ADDRESS.getPublicKeyHashByAddress(out.address).toString('hex');
 
             this.app.debug('info', 'mempool', "add unconfirmed ds index " + out.addrHash, txid);
             let addrind = this.get("ds/address/" + out.addrHash);
@@ -234,6 +249,9 @@ module.exports = (app) => {
             addrind.push(txid);
             this.set("ds/address/" + out.addrHash, addrind)
             return addrind
+        }
+        getTx(hash) {
+            return this.get(hash);
         }
 
     }
