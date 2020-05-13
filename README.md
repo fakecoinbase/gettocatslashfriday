@@ -13,8 +13,15 @@ cd project
 mkdir logs
 git clone https://github.com/gettocat/friday.git .
 npm install
+```
+
+## Run
+
+```
 node mainnet.js 
 ```
+
+## Daemon
 
 supervisor config
 ```
