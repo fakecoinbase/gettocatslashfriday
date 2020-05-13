@@ -36,4 +36,9 @@ redirect_stderr=true
 
 ```
 
-
+add to supervisor
+```
+nano /etc/supervisor/conf.d/friday.conf
+### paste config ---^ ###
+/etc/init.d/supervisor restart
+```
