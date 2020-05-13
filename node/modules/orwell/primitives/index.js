@@ -78,8 +78,17 @@ module.exports = (friday) => {
     })(app))
 
     class Tx2 extends app.TX {
-        static writeCoinbaseBytes() {
-            //TODO;
+        static writeCoinbaseBytes(authorName, hardware, signalBytes) {
+            let wr = new bitPony.writer(new Buffer("", 'hex'));
+            wr.string(authorName, true);
+            wr.string(hardware, true);
+            wr.uint32(Date.now()/1000, true);
+            wr.var_int(signalBytes.length, true);
+            for (let i in signalBytes){
+                wr.uint8(signalBytes[i], true);
+            }
+            
+            return wr.toBuffer();
         }
         static readCoinbaseBytes(cb) {
             let cbData = {};

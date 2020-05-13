@@ -15,7 +15,6 @@ module.exports = function (app) {
             block.size = 0;
             block.fee = 0;
 
-            block.diff = app.orwell.getDifficulty(block.bits);
             for (let i in block.tx) {
                 block.size += block.tx[i].size;
                 block.fee += block.tx[i].fee / app.cnf('consensus').satoshi;

@@ -17,7 +17,7 @@
         "bitpony": "^0.0.1",
         "bloom-filter": "^0.2.0",
         "bn.js": "^4.11.8",
-        "consensusjs": "^0.0.20",
+        "consensusjs": "^0.0.21",
         "date-format": "^3.0.0",
         "ecdsa-csr": "^1.1.1",
         "elliptic": "^6.5.1",

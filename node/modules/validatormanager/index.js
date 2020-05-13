@@ -23,13 +23,13 @@ class validatorManager extends EventEmitter {
         this.initValidators();
 
         this.app.debug("info", "validatormanager", "update validator list - old: " + old + " new: " + this.current);
-        /*if (this.current == this.app.cnf('node').publicKey) {
+        if (this.current == this.app.cnf('node').publicKey) {
             this.checkValidatorsPriority()
                 .then((hash) => {
-                    if (hash){
+                    if (hash) {
                         this.app.debug("info", "validatormanager", "update validators priority tx:", hash);
                     }
-                    let newblock = this.createBlock("001122");
+                    let newblock = this.createBlock(this.app.orwell.TX.writeCoinbaseBytes('default client', JSON.stringify(this.app.getAgentName())));
                     this.app.debug("info", "validatormanager", "current node is active validator, created block ", newblock.getHash());
                     this.app.orwell.addBlockFromNetwork(null, newblock)
                         .then((data) => {
@@ -38,16 +38,6 @@ class validatorManager extends EventEmitter {
                         });
                 })
 
-        }*/
-
-        if (this.current == this.app.cnf('node2').publicKey) {
-            let newblock = this.createBlock("221100", { public: this.app.cnf('node2').publicKey, private: this.app.cnf('node2').privateKey });
-            this.app.debug("info", "validatormanager", "current node is active validator, created block ", newblock.getHash());
-            this.app.orwell.addBlockFromNetwork(null, newblock)
-                .then((data) => {
-                    this.app.debug("info", "validatormanager", "added block to consensus");
-                    data.send();
-                });
         }
     }
     initValidators() {
