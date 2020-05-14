@@ -42,6 +42,7 @@ class app extends EventEmitter {
                 ])
             })
             .then(() => {
+                this.emit("beforeinit");
                 this.emit("_caninit");
             })
 
@@ -295,37 +296,27 @@ class app extends EventEmitter {
             "genesis": {
                 "v": 1,
                 "p": "0000000000000000000000000000000000000000000000000000000000000000",
-                "m": "4d6a58da73ae39cb8df89294842e4c622ccde1fab2c51d812be926534524d6f4",
-                "t": 1587129074,
-                "b": 0,
+                "m": "4e0de9dfff4d1adc57ee8bc1826633bfc2f39304e9777dd53d344bc405caca34",
+                "t": 1589450966,
+                "b": 4,
                 "n": 0,
-                "tx": [
-                    {
-                        "v": 1,
-                        "s": [
-                            [
-                                "3046022100c09dbfb69349e1bca3673bfe97acb3f897da66a8eca1811de33a0f243853e19802210097385f7f85a9a43f37dfdfc0093c8fb685798b445bc9c6e2f76e027f8ce778f1",
-                                "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56"
-                            ]
-                        ],
-                        "out": [
-                            {
-                                "address": "oKiuEwim7Cqwo9zaxCcHaQYPiunz2iM5Ac",
-                                "amount": 4750000000,
-                                "key": "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56"
-                            },
-                            {
-                                "address": "oHpESURCzrSQae4fWL9ZDtVa4sR6aLqm23",
-                                "amount": 250000000,
-                                "key": "03032f0fa03e1e6ec9dac5e84055bffbb99d57abd6de1e48741f0aa2471d72cd76"
-                            }
-                        ],
-                        "cb": "001122",
-                        "m": "b4ee9b6114d25fef5df065d1852819bc5ffe6927c779fe25107d6f1239574f44",
-                        "k": "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56"
-                    }
-                ],
-                "hash": "9a7068d4d9c9fa46ca770980400164997702c904194e958b353cd8c5842e1d69"
+                "tx":
+                    [
+                        {
+                            "v": 1,
+                            "s": [["3046022100d67a4cda0325715dac8112384ed509311eb340790ccba17397b219e73458be0c022100ce7f37700807f7a303ec98cf25cbb42a3a4fc9026aee48523d04d0377fc92e6d", "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56"]],
+                            "out": [
+                                { "address": "oKiuEwim7Cqwo9zaxCcHaQYPiunz2iM5Ac", "amount": 4750000000, "key": "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56" },
+                                { "address": "oNghtqNMXBG4SChq3tBP8aVfnh48rLC567", "amount": 83333333.33333333, "key": "0217a1f3bc8292e64d27cd89482011e1db10151174240871da35eed6cafb8855fe" },
+                                { "address": "obd9PtJw72iFPz23CrZ3cE5M5h9HLEkbHa", "amount": 83333333.33333333, "key": "0224d2b65a6204c3a245824fa45219492faaaaf3fbaccfb0c48969c7cf56797ee5" },
+                                { "address": "oZKCYmtkytkr9sDusmLEfEhaaQySsmsftX", "amount": 83333333.33333333, "key": "03d4f41887a01690f00ffce7abb93d95a6386c42e7e64db1cf663b0fbf1f859b49" }
+                            ],
+                            "cb": "47454e45534953",
+                            "m": "9c177b98f59dfceab4abb37f8594ac170b006721bc5360ef99d42dc270bc14a4",
+                            "k": "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56"
+                        }
+                    ],
+                "hash": "b92c9fcf808e467092d56df249e4fe360407d7840fa058717ae28cc2d391e526"
             },
             "rpc": {
                 "useServer": true,

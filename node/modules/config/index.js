@@ -1,4 +1,5 @@
 const fs = require('fs');
+const mixin = require('mixin-deep');
 
 class config {
     constructor(app) {
@@ -19,8 +20,9 @@ class config {
         let net = options['network'];
         let params = options[net];
 
-        params = Object.assign({}, this.app.getDefaultConfig(), params);
-        options[net] = params;
+        let res = mixin(this.app.getDefaultConfig(), params);
+        //params = Object.assign({}, this.app.getDefaultConfig(), params);
+        options[net] = res;
 
         for (let i in options) {
             this.arg[i] = options[i];
@@ -29,9 +31,9 @@ class config {
     loadOptions(options) {
         let net = options['network'];
         let params = options[net];
-
-        params = Object.assign({}, this.app.getDefaultConfig(), params);
-        options[net] = params;
+        let res = mixin(this.app.getDefaultConfig(), params);
+        //params = Object.assign({}, this.app.getDefaultConfig(), params);
+        options[net] = res;
 
         for (let i in options) {
             this.arg[i] = options[i];
