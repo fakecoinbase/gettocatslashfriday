@@ -24,11 +24,6 @@ class orwell {
 
         let primitives = require('./primitives/index')(app);
 
-        //this.TX = require('./primitives/tx')(app);
-        //this.BLOCK = require('./primitives/block')(app);
-        //this.BLOCK.VALIDATOR = require('./primitives/block/validator')(app);
-        //this.TX.VALIDATOR = require('./primitives/tx/validator')(app);
-
         this.TX = primitives.Transaction;
         this.BLOCK = primitives.Block;
 
@@ -40,7 +35,6 @@ class orwell {
         let index = require('./indexer')(app);
         let UTXO = require('./utxo')(app);
         let DSINDEX = require('./dsindex')(app);
-        //let MiningWork = require('./work')(app);
 
         require('./validations')(this.app, this);
         this.app.debug("info", "index", "storage loaded, can load indexes");
@@ -87,7 +81,22 @@ class orwell {
 
                     res();
                 });
-        });
+        })
+            .then(() => {
+
+                this.app.debug("info", "validatormanager", "start timer");
+                this.restartTimer()
+
+                return Promise.resolve();
+            })
+    }
+
+    restartTimer() {
+        setTimeout(() => {
+            this.app.debug("info", "validatormanager/timer", "check current validator");
+            this.app.validatormanager.checkActiveValidator();
+            this.restartTimer();
+        }, 10000)
     }
 
     needReindex() {

@@ -19,7 +19,7 @@ module.exports = function (app) {
             top: message.lastblock || { number: 0 },
             ackSended: 1,
             conntime: Date.now() / 1000,
-            agent: app.network.protocol.getUserAgent(),
+            agent: message.agent,
             timezone: message.timezone
         });
 

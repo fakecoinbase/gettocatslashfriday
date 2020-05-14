@@ -216,14 +216,9 @@ class network {
             try {
                 if (!rinfo)
                     for (let k in nlist) {
-                        let rinf = this.protocol.getUniqAddress(nlist[k]);
-                        this.nodes.updateSendTime(rinf)
-                        this.nodes.updateSentBytes(rinf, msg.length)
                         this.__send(nlist[k], msg, isFirstMessage)
                     }
                 else {
-                    this.nodes.updateSendTime(rinfo)
-                    this.nodes.updateSentBytes(rinfo, msg.length)
                     this.__send(this.protocol.getAddressUniq(rinfo), msg, isFirstMessage);
                 }
             } catch (e) {
@@ -395,6 +390,10 @@ class network {
         }
 
         msg = this.buildTransportLayer(encryptedBuffer, !isFirstMessage);
+
+        let rinf = this.protocol.getUniqAddress(addr);
+        this.nodes.updateSendTime(rinf)
+        this.nodes.updateSentBytes(rinf, msg.length)
 
         let socket = this.nodes.get("connection/" + addr);
         if (!socket.STATUS || socket.destroyed === true) {

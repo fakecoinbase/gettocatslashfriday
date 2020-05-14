@@ -31,11 +31,7 @@ module.exports = (app, orwell) => {
 
         if (data.chain != 'main')
             return false;
-
-        app.debug("info", "validatormanager", "received block " + data.dataId + " from network in mainchain, wait 30 sec");
-        setTimeout(() => {
-            app.validatormanager.checkActiveValidator();
-        }, 40000)
+        
     });
 
     //cns.on("app.data{someDataId}");//emit this event when dataId added in main chain
