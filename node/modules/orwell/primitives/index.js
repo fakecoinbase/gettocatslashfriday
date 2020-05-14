@@ -1,5 +1,6 @@
 const PRIMITIVES = require('@nanocat/friday-serialized');
 const dscript = require('orwelldb').datascript;
+const bitPony = require('bitpony');
 
 module.exports = (friday) => {
 
