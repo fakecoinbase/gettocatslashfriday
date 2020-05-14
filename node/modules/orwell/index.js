@@ -59,6 +59,7 @@ class orwell {
     }
     init() {
         return new Promise((res) => {
+
             this.app.setSyncState('loadFromCache');
 
             /*if (!this.loadBlocksFromFile()) {

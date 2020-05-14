@@ -296,27 +296,25 @@ class app extends EventEmitter {
             "genesis": {
                 "v": 1,
                 "p": "0000000000000000000000000000000000000000000000000000000000000000",
-                "m": "4e0de9dfff4d1adc57ee8bc1826633bfc2f39304e9777dd53d344bc405caca34",
-                "t": 1589450966,
+                "m": "c2182fa35d637f804f91c4fea5a296947311e5c42994cfac7f3435cc1d3c32a9",
+                "t": 1589457660,
                 "b": 4,
                 "n": 0,
-                "tx":
-                    [
-                        {
-                            "v": 1,
-                            "s": [["3046022100d67a4cda0325715dac8112384ed509311eb340790ccba17397b219e73458be0c022100ce7f37700807f7a303ec98cf25cbb42a3a4fc9026aee48523d04d0377fc92e6d", "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56"]],
-                            "out": [
-                                { "address": "oKiuEwim7Cqwo9zaxCcHaQYPiunz2iM5Ac", "amount": 4750000000, "key": "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56" },
-                                { "address": "oNghtqNMXBG4SChq3tBP8aVfnh48rLC567", "amount": 83333333.33333333, "key": "0217a1f3bc8292e64d27cd89482011e1db10151174240871da35eed6cafb8855fe" },
-                                { "address": "obd9PtJw72iFPz23CrZ3cE5M5h9HLEkbHa", "amount": 83333333.33333333, "key": "0224d2b65a6204c3a245824fa45219492faaaaf3fbaccfb0c48969c7cf56797ee5" },
-                                { "address": "oZKCYmtkytkr9sDusmLEfEhaaQySsmsftX", "amount": 83333333.33333333, "key": "03d4f41887a01690f00ffce7abb93d95a6386c42e7e64db1cf663b0fbf1f859b49" }
-                            ],
-                            "cb": "47454e45534953",
-                            "m": "9c177b98f59dfceab4abb37f8594ac170b006721bc5360ef99d42dc270bc14a4",
-                            "k": "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56"
-                        }
-                    ],
-                "hash": "b92c9fcf808e467092d56df249e4fe360407d7840fa058717ae28cc2d391e526"
+                "tx": [
+                    {
+                        "v": 1,
+                        "s": [["3046022100ab23516cec09963fc20f301f86f354da84fba2cd4e862a2a403e9620e71d817a0221008924c95bcbd289fc6866d53465cb40066c5aad96d33e2a843f6c2373a12ba413", "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56"]],
+                        "out": [
+                            { "address": "oKiuEwim7Cqwo9zaxCcHaQYPiunz2iM5Ac", "amount": 4750000001, "key": "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56" },
+                            { "address": "oNghtqNMXBG4SChq3tBP8aVfnh48rLC567", "amount": 83333333, "key": "0217a1f3bc8292e64d27cd89482011e1db10151174240871da35eed6cafb8855fe" },
+                            { "address": "obd9PtJw72iFPz23CrZ3cE5M5h9HLEkbHa", "amount": 83333333, "key": "0224d2b65a6204c3a245824fa45219492faaaaf3fbaccfb0c48969c7cf56797ee5" },
+                            { "address": "oZKCYmtkytkr9sDusmLEfEhaaQySsmsftX", "amount": 83333333, "key": "03d4f41887a01690f00ffce7abb93d95a6386c42e7e64db1cf663b0fbf1f859b49" }],
+                        "cb": "47454e45534953",
+                        "m": "9c177b98f59dfceab4abb37f8594ac170b006721bc5360ef99d42dc270bc14a4",
+                        "k": "02a832289414cc0a402022beb17f8432c3fed3c3187036bb83e359917df26b8b56"
+                    }
+                ],
+                "hash": "64b2f7b9d08fac302e54a109ea022ecdbd5fed1d1ce0d240981e098e194e1fd7"
             },
             "rpc": {
                 "useServer": true,

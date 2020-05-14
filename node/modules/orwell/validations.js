@@ -1256,7 +1256,8 @@ module.exports = function (app, chain) {
             let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
 
             let val = new BN(app.orwell.getBlockValue(fullfee.toNumber(), (height)));
-            
+
+
             if (!(amount.add(fullfee).eq(val))) {
                 return validator.addError("Coinbase amount is lesser or bigger then minimum blockValue for height: " + (height), 'block_coinbase_amount_invalid');
             }

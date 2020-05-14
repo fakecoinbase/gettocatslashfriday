@@ -56,17 +56,27 @@ module.exports = (friday) => {
                 ];
 
                 let lessamount = fullamount * .05;
-                for (let i in validators) {
-                    let am = lessamount / (validators.length - 1);
-                    if (validators[i] == currnode)
-                        am = fullamount * .95;
 
+                let balances = {};
+                let full_calc = 0;
+                for (let i in validators) {
+                    let am = Math.floor(lessamount / (validators.length - 1));
+                    if (validators[i] == currnode)
+                        am = Math.floor(fullamount * .95);
+
+                    balances[validators[i]] = am;
+                    full_calc += am;
+                }
+
+                //becauseof floor 
+                let part = fullamount - full_calc;
+
+                for (let i in validators) {
                     outs.push({
                         key: validators[i],
                         address: this.getAddressByPublicKey(validators[i]),
-                        amount: am
-                    });
-
+                        amount: (validators[i] == currnode) ? (balances[validators[i]] + part) : balances[validators[i]]
+                    })
                 }
 
                 return outs;
@@ -82,12 +92,12 @@ module.exports = (friday) => {
             let wr = new bitPony.writer(new Buffer("", 'hex'));
             wr.string(authorName, true);
             wr.string(hardware, true);
-            wr.uint32(Date.now()/1000, true);
+            wr.uint32(Date.now() / 1000, true);
             wr.var_int(signalBytes.length, true);
-            for (let i in signalBytes){
+            for (let i in signalBytes) {
                 wr.uint8(signalBytes[i], true);
             }
-            
+
             return wr.toBuffer();
         }
         static readCoinbaseBytes(cb) {
@@ -135,7 +145,7 @@ module.exports = (friday) => {
                     else
                         resolve(tx.hash);
                 });
-                
+
                 friday.network.protocol.sendAll("mempool.tx", tx);
 
             })
@@ -155,7 +165,7 @@ module.exports = (friday) => {
                     datascripts[ds.dataset].push(ds);
                 }
             }
-            
+
             let dbname = friday.orwell.ADDRESS.getPublicKeyHashByAddress(this.outputs[0].address).toString('hex');
             let dbaddress = this.outputs[0].address;
             let writerKey = this.signdata[0][1];
@@ -242,7 +252,7 @@ module.exports = (friday) => {
         }
         static generateNewBlockTemplate(timestamp, coinbaseBytes, keystore, currentValidators) {
             let blockTemplate = super.generateNewBlockTemplate(timestamp, coinbaseBytes, keystore, currentValidators);
-            
+
             blockTemplate.nonce = currentValidators.indexOf(keystore.public);
             if (blockTemplate.nonce == -1)
                 throw new Error('Invalid nonce, public key not in validator list')
