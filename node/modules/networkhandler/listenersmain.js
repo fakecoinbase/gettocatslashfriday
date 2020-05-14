@@ -262,7 +262,7 @@ module.exports = function (app) {
             if (last < 0)
                 last = 0;
 
-            if (app.orwell.index.getTop().hash == message.hashStart)
+            if (app.orwell.index.getTop().id == message.hashStart)
                 return;//nothing todo here
 
             app.network.nodes.setState(connectionInfo, 'syncing');
@@ -442,10 +442,11 @@ module.exports = function (app) {
                 return false;
 
             try {
-                let height = app.orwell.getBlockHeight(message.prev) + 1;
+                let b = app.orwell.BLOCK.fromJSON(message);
+                let height = app.orwell.getBlockHeight(message.p) + 1;
                 message.height = height;
-                app.debug('info', 'orwell', height + "/" + message.hash);
-                app.orwell.addBlockFromNetwork(null, app.orwell.BLOCK.fromJSON(message), 'relay', function (block, res) {
+                app.debug('info', 'orwell', height + "/" + b.getId());
+                app.orwell.addBlockFromNetwork(null, b, 'relay', function (block, res) {
                     app.debug("info", "orwell", "added new block by rpc chain ", res.chain, block.getId());
                     //if (b.validation_errors.length == 0) {
                     //    b.send();
@@ -462,7 +463,7 @@ module.exports = function (app) {
                     app.debug('error', 'chain', 'block rejected: ', e.code, e.message);
 
                 if (e.code == 'block_prev_missing') {
-                    app.emit("chain.block.seek", { hash: message.prev });
+                    app.emit("chain.block.seek", { hash: message.p });
                 }
 
             }

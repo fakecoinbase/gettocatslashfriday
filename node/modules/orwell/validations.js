@@ -1313,7 +1313,7 @@ module.exports = function (app, chain) {
                 return true;
 
             let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
-            if (block.getTime() <= chain.getTimeForHeight((height) - 1)) {
+            if (block.getTime() <= chain.getTimeForHeight(height - 1)) {
                 return validator.addError("Block time invalid", 'block_time_invalid');
             }
 

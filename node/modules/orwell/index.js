@@ -84,8 +84,10 @@ class orwell {
         })
             .then(() => {
 
-                this.app.debug("info", "validatormanager", "start timer");
-                this.restartTimer()
+                if (!this.app.cnf('consensus').genesisMode && Number.isFinite(this.app.orwell.index.get('top').height)) {
+                    this.app.debug("info", "validatormanager", "start timer");
+                    this.restartTimer()
+                }
 
                 return Promise.resolve();
             })
@@ -290,7 +292,7 @@ class orwell {
     getTimeForHeight(height) {
         let avg = 1;
         let count = 12;
-        if (height == -1)//genesis block
+        if (height == -1 || height == 0)//genesis block
             return 0;
 
         let block = this.consensus.dataManager.getDataFromHeight(height);

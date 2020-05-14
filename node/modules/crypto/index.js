@@ -48,7 +48,7 @@ module.exports = {
         var privateKey, publicKey;
         var cf = new crypto();
         if (status = cf.init()) {
-            privateKey = cf.private.priv.toJSON();
+            privateKey = cf.private.getPrivate('hex');
             publicKey = cf.private.getPublic(true, 'hex');
         }
 
@@ -63,14 +63,14 @@ module.exports = {
         return cf.private.getPublic(true, 'hex');
     },
     sign: function (priv, messageBinary) {
-        var cf = new crypto(priv),
-            sig = cf.ecdsa().sign(messageBinary, new Buffer(priv, 'hex'))
+        let cf = ec.keyFromPrivate(new Buffer(priv, 'hex').toString('hex'), 'hex'),
+            sig = cf.sign(messageBinary, new Buffer(priv, 'hex'));
 
         return new Buffer(sig.toDER())
     },
     verify: function (public, sign, messageBinary) {
-        var key = ec.keyFromPublic(public, 'hex')
-        return key.verify(messageBinary, sign, 'hex')
+        let key = ec.keyFromPublic(public, 'hex');
+        return key.verify(messageBinary, new Buffer(sign, 'hex'));
     },
     createECDHsecret(exported_public, keystore) {
         let ec = new EC('secp256k1');

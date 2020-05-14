@@ -76,7 +76,7 @@ module.exports = (friday) => {
                     outs.push({
                         key: validators[i],
                         address: this.getAddressByPublicKey(validators[i]),
-                        amount: (validators[i] == currnode) ? (balances[validators[i]] + part) : balances[validators[i]]
+                        amount: (validators[i] == currnode && part >= 1) ? (balances[validators[i]] + part) : balances[validators[i]]
                     })
                 }
 
@@ -90,6 +90,8 @@ module.exports = (friday) => {
 
     class Tx2 extends app.TX {
         static writeCoinbaseBytes(authorName, hardware, signalBytes) {
+            if (!signalBytes)
+                signalBytes = [];
             let wr = new bitPony.writer(new Buffer("", 'hex'));
             wr.string(authorName, true);
             wr.string(hardware, true);
@@ -99,7 +101,7 @@ module.exports = (friday) => {
                 wr.uint8(signalBytes[i], true);
             }
 
-            return wr.toBuffer();
+            return wr.getBuffer();
         }
         static readCoinbaseBytes(cb) {
             let cbData = {};

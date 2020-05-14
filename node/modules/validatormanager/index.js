@@ -15,8 +15,8 @@ class validatorManager extends EventEmitter {
         //if currenct validator == currentNode - must fire event for miner
 
         //enables only when node in network and fully synced
-        if (!this.app.cnf('consensus').genesisMode && Number.isFinite(this.app.orwell.index.get('top').height))
-            this.checkActiveValidator();
+        //if (!this.app.cnf('consensus').genesisMode && Number.isFinite(this.app.orwell.index.get('top').height))
+        //    this.checkActiveValidator();
     }
     checkActiveValidator() {
         let old = this.current;
@@ -29,7 +29,7 @@ class validatorManager extends EventEmitter {
                     if (hash) {
                         this.app.debug("info", "validatormanager", "update validators priority tx:", hash);
                     }
-                    let newblock = this.createBlock(this.app.orwell.TX.writeCoinbaseBytes('default client', JSON.stringify(this.app.getAgentName())));
+                    let newblock = this.createBlock(this.app.orwell.TX.writeCoinbaseBytes('default client', this.app.getAgentName().name + ":" + this.app.getAgentName().version));
                     this.app.debug("info", "validatormanager", "current node is active validator, created block ", newblock.getHash());
                     this.app.orwell.addBlockFromNetwork(null, newblock)
                         .then((data) => {
