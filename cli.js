@@ -1,6 +1,10 @@
+const mixin = require("mixin-deep");
 let DAPP = require("./node/index");
 let cnf = require('./config.json');
-let cli_cnf = cnf[cnf.network].rpc.client;
+
+let opts = mixin(DAPP.prototype.getDefaultConfig(), cnf);
+let cli_cnf = opts.rpc.server;
+
 DAPP.cli(cli_cnf, function (status, res) {
     if (status) {
         if (typeof res.result == 'string')
