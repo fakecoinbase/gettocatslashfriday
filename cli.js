@@ -1,6 +1,6 @@
 const mixin = require("mixin-deep");
-let DAPP = require("./node/index");
-let cnf = require('./config.json');
+const DAPP = require("./node/index");
+const cnf = require('./config.json');
 
 let opts = mixin(DAPP.prototype.getDefaultConfig(), cnf);
 let cli_cnf = opts.rpc.server;
