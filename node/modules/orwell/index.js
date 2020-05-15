@@ -299,12 +299,12 @@ class orwell {
         let list = [block];
         let i = 1;
         do {
+            if (block.getPrevId() == this.app.cnf('genesis').hash)
+                break;
+
             i++;
             block = this.getBlock(block.getPrevId());
             list.push(block);
-
-            if (block.getPrevId() == this.app.orwell.GENESIS.hash)
-                break;
         } while (i < count && block && i > 0);
 
         let times = [];
