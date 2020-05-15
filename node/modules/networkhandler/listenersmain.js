@@ -262,8 +262,10 @@ module.exports = function (app) {
             if (last < 0)
                 last = 0;
 
-            if (app.orwell.index.getTop().id == message.hashStart)
+            if (app.orwell.index.getTop().id == message.hashStart) {
+                app.debug("info", "getdata", "node already synced ")
                 return;//nothing todo here
+            }
 
             app.network.nodes.setState(connectionInfo, 'syncing');
             let list = app.orwell.getBlockList(last, first, 'json');
@@ -494,7 +496,7 @@ module.exports = function (app) {
                 app.debug('error', 'orwell', 'transaction error: ' + errcode, errmsg)
             })
             .finally(() => {
-                app.emit("app.orwell.tx"+message.hash, !invalid, message, errcode, errmsg);
+                app.emit("app.orwell.tx" + message.hash, !invalid, message, errcode, errmsg);
 
                 if (invalid && app.getSyncState() == 'active') {
                     if (errcode != 'alreadyexist') {
@@ -534,12 +536,12 @@ module.exports = function (app) {
 
     });
 
-    app.on("handler.dappreq", (message, connectionInfo, selfMessage, sign)=>{
-        
+    app.on("handler.dappreq", (message, connectionInfo, selfMessage, sign) => {
+
         app.dapps.handleRequest(message);
     })
 
-    app.on("handler.dappres", (message, connectionInfo, selfMessage, sign)=>{
+    app.on("handler.dappres", (message, connectionInfo, selfMessage, sign) => {
         app.dapps.handleResponse(message);
     })
 
@@ -559,7 +561,7 @@ module.exports = function (app) {
 
     });
 
-    app.on("protocol.node.added", (connectionKey, connectionInfo, selfMessage) => {
+    app.on("net.connection.add", (socket, from, selfMessage) => {
         if (!selfMessage)
             app.emit("atleastonepeer");
     })

@@ -516,11 +516,10 @@ module.exports = function (app) {
     });
 
     app.on("preready", (data) => {
-        app.debug("info", "app", "ready for work with event", data.event)
-        if (data.event == 'haventpeer' && app.getSyncState() != 'active')
+        app.debug("info", "app", "ready for work with event", data.event, app.getSyncState())
+        if ((data.event == 'haventpeer' || data.event == 'atleastonepeer') && app.getSyncState() != 'active')
             app.setSyncState('active');
 
-        app.miner.start();
         app.emit("ready", { event: data.event });
     });
 

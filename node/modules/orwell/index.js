@@ -405,7 +405,7 @@ class orwell {
     }
 
     getKnownRange() {
-        return this.consensus.getConsensus().getWindowRange();
+        return [0, this.index.getTop().height];
     }
 
     sendTx(message) {

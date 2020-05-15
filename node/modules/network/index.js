@@ -8,6 +8,26 @@ class network {
         this.inited = false;
         this.socketQueue = {};
     }
+    isSelf(address) {
+        var os = require('os');
+        var finded = false;
+        var interfaces = os.networkInterfaces();
+        var addresses = [];
+
+        for (var k in interfaces) {
+            for (var k2 in interfaces[k]) {
+                var addr = interfaces[k][k2];
+                if (addr.family === 'IPv4') {
+                    addresses.push(addr.address);
+                    if (addr.address == address || addr.address == address.replace("::ffff:", ""))
+                        finded = true;
+                }
+            }
+        }
+
+
+        return address == '127.0.0.1' || address == '::ffff:127.0.0.1' || finded
+    }
     init() {
 
         return new Promise((resolve, reject) => {
@@ -37,7 +57,7 @@ class network {
     setUp() {
         if (this.inited)
             return;
-        this.app.on("net.connection.add", (socket, from) => {
+        this.app.on("net.connection.add", (socket, from, isSelf) => {
             let o = {
                 remoteAddress: socket.remoteAddress.replace("::ffff:", ""),
                 remotePort: socket.remotePort,
@@ -67,7 +87,7 @@ class network {
             //connection new event
             socket.STATUS = 1;
             this.nodes.set("connection/" + addr, socket);
-            this.app.emit("net.node.add", addr);
+            this.app.emit("net.node.add", addr, this.isSelf(o.remoteAddress));
         });
 
         this.app.on("net.connection.remove", (addr, from) => {
@@ -140,27 +160,6 @@ class network {
                 return false;
 
 
-            function isSelf(address) {
-                var os = require('os');
-                var finded = false;
-                var interfaces = os.networkInterfaces();
-                var addresses = [];
-
-                for (var k in interfaces) {
-                    for (var k2 in interfaces[k]) {
-                        var addr = interfaces[k][k2];
-                        if (addr.family === 'IPv4') {
-                            addresses.push(addr.address);
-                            if (addr.address == address || addr.address == address.replace("::ffff:", ""))
-                                finded = true;
-                        }
-                    }
-                }
-
-
-                return address == '127.0.0.1' || address == '::ffff:127.0.0.1' || finded
-            }
-
             if (!socket.remoteAddress)
                 return;
             let rinfo;
@@ -184,7 +183,7 @@ class network {
             //decrypt (if need)
 
 
-            var nodeKey = this.protocol.handleMessage(d, rinfo, isSelf(socket.remoteAddress));
+            var nodeKey = this.protocol.handleMessage(d, rinfo, this.isSelf(socket.remoteAddress));
         });
 
         this.app.on("net.error", function (e) {
@@ -263,7 +262,7 @@ class network {
             //remove old connection
             this.app.emit("net.connection.remove", addr);
             this.p2p.newClient(a.remoteAddress, a.port, (client) => {
-                this.app.emit("net.connection.add", client, 'client');
+                this.app.emit("net.connection.add", client, 'client', this.isSelf(client.remoteAddress));
                 //this.app.emit("net.node.init" + this.app.network.protocol.getAddressUniq(client));
                 cb(client);
 

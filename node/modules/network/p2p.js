@@ -31,7 +31,7 @@ class p2p {
                 delay = 1000;//becase local server event can come before client event, for right algorithm working we must fix it.  
 
             setTimeout(() => {
-                this.app.emit("net.connection.add", stream, 'server');
+                this.app.emit("net.connection.add", stream, 'server', this.app.network.isSelf(stream.remoteAddress));
                 //this.app.emit("net.node.init" + this.app.network.protocol.getAddressUniq(stream));
             }, delay);
 
