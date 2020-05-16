@@ -358,10 +358,10 @@ module.exports = function (app, chain) {
                 let prev = app.orwell.getOut(outs[i].hash, outs[i].index);
                 if (!prev)
                     return validator.addError('Tx prev out is not exist', 'tx_prevout_missing');
-                //todo: prev.scriptPubKey maybe too?  and for rule: standartScriptSig
+
                 let prevamount = new app.tools.BN(prev.amount);
 
-                if (prevamount.lt(sat))
+                if (prevamount.lt(new BN(1, 10)))
                     return validator.addError("Transaction in[" + i + "].prevout.amount value is less than 1 satoshi", 'tx_in_prevout_amount_less');
 
                 if (prevamount.gt(maxcoins))

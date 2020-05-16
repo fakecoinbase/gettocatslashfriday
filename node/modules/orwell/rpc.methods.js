@@ -1230,7 +1230,9 @@ module.exports = function (app) {
             })
             .catch((e) => {
                 cb(null, e);
-            })
+            });
+
+        return -1;
     });
 
     app.rpc.addMethod("resolvedomain", (params, cb) => {
