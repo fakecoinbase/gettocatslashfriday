@@ -1243,6 +1243,25 @@ module.exports = function (app) {
         return app.rpc.success(app.orwell.resolveDomainName(params[0]));
     });
 
+    app.rpc.addMethod("filterlog", (params, cb) => {
+
+        let availables = ['config', 'crypto', 'tools', 'db', 'storage', 'rpc', 'index', 'app', 'orwell', 'validatormanager', 'wallet', 'networkhandler', 'dapps', 'ui', 'network', 'dApps', 'handler', 'error', 'utxo', 'validatormanager/timer'];
+        if (!params[0] || params[0] == 'help') {
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'read only selected cats, use: filterlog cat1,cat2,...,catN, available cats (all for read all): ' + availables.join(","));
+        }
+
+        let commands = [];
+        if (params[0] == 'all')
+            commands = availables;
+        else if (params[0] == 'none')
+            commands = [];
+        else
+            commands = params[0].split(",");
+
+        app.setLogModules(commands);
+        return app.rpc.success({ "status": "ok", 'nowRead': commands.join(",") });
+    });
+
 
     app.rpc.addMethod("decodedatascript", (params, cb) => {
 

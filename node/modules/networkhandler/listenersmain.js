@@ -82,16 +82,17 @@ module.exports = function (app) {
         } else if (d.top.height > app.orwell.index.getTop().height) {
             isActiveNode = false;
 
-            arr.push({
-                sendBack: true,
-                type: 'getdata',
-                response: {
-                    type: 'blocks',
-                    hashStart: app.orwell.index.getTop().id,
-                    hashStop: 0,
-                    offset: 0,
-                }
-            })
+            if (!(app.db.get("activesync") && typeof app.db.get("activesync") == 'string'))
+                arr.push({
+                    sendBack: true,
+                    type: 'getdata',
+                    response: {
+                        type: 'blocks',
+                        hashStart: app.orwell.index.getTop().id,
+                        hashStop: 0,
+                        offset: 0,
+                    }
+                })
         }
 
         if (app.getSyncState() == 'readyToSync' && isActiveNode && !selfMessage)
@@ -141,8 +142,10 @@ module.exports = function (app) {
             return false;
 
 
-        if (app.db.get("activesync"))
+        if (app.db.get("activesync") && typeof app.db.get("activesync") == 'string') {
+            app.network.protocol.sendOne(connectionInfo, 'pong', {});
             return false;//in sync process now
+        }
 
         let key = app.network.protocol.getAddressUniq(connectionInfo);
         let d = app.network.nodes.get("data/" + key);
@@ -198,7 +201,7 @@ module.exports = function (app) {
 
     });
 
-    app.on("app.state", function (data) {
+    /*app.on("app.state", function (data) {
 
         if (data.state == 'readyToSync' && data.old == 'loadFromCache') {
             //send now state to all connected nodes
@@ -219,7 +222,7 @@ module.exports = function (app) {
             //app.miner.stop();
         }
 
-    });
+    });*/
 
     app.on("handler.getdata", function (message, connectionInfo, selfMessage) {
 
@@ -390,8 +393,8 @@ module.exports = function (app) {
                     .then((b) => {
                         return new Promise((resolve, reject) => {
                             try {
-                                app.orwell.addBlockFromNetwork(null, app.orwell.BLOCK.fromJSON(blocklist[i]), 'sync', (block, res) => {
-                                    resolve(block);
+                                app.orwell.addBlockFromNetwork(null, app.orwell.BLOCK.fromJSON(blocklist[i]), 'sync', (block1, res) => {
+                                    resolve(block1);
                                 });
                             } catch (e) {
                                 app.debug("error", "blocksync", e.message);
@@ -437,6 +440,9 @@ module.exports = function (app) {
                 return false;
 
             let blocklist = app.db.get("sync/" + activesync);
+            if (!blocklist || !(blocklist instanceof Array))
+                blocklist = [];
+
             blocklist.push(message);
             app.db.set("sync/" + activesync, blocklist);
         } else {
@@ -521,13 +527,13 @@ module.exports = function (app) {
         if (selfMessage)
             return false;
 
-        if (Object.keys(app.db.get("activesync")).length > 0)
+        if (app.db.get("activesync") && typeof app.db.get("activesync") == 'string')
             return false;//in sync process now
 
         app.setSyncState('readyToSync');
 
         //this node have less number block then in 
-        app.network.protocol.sendAll('getdata', {
+        app.network.protocol.sendOne(connectionInfo, 'getdata', {
             type: 'blocks',
             hashStart: app.orwell.index.getTop().id,
             hashStop: 0,

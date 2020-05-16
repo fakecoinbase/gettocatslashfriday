@@ -10,7 +10,7 @@ module.exports = (app, orwell) => {
     //event handlers:
 
     cns.on("debug", (data) => {
-        console.log("[" + new Date().toLocaleTimeString() + "]", "< " + data.level + " >", data.module, data.text);
+        app.emit("app.debug", data);
     });
 
     cns.on("app.consensus.init", (data) => {
@@ -31,7 +31,7 @@ module.exports = (app, orwell) => {
 
         if (data.chain != 'main')
             return false;
-        
+
     });
 
     //cns.on("app.data{someDataId}");//emit this event when dataId added in main chain

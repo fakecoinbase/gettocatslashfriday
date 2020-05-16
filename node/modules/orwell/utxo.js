@@ -35,7 +35,6 @@ module.exports = (app) => {
                 let prevout;
                 try {
                     prevout = app.orwell.getOut(inpt.hash, inpt.index);
-                    console.log('prevout', prevout);
                     this.removeOutIndex(tx.hash, prevout.address, inpt.hash, inpt.index);
                 } catch (e) {
                     console.log('error', e)

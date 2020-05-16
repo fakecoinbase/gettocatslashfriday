@@ -390,7 +390,7 @@ module.exports = (app) => {
             'nearRight': (page + 2 > pages) ? pages : page + 2,
         }
 
-        let tokenInfo = app.orwell.dsIndex.getTokenSettings(req.params.ticker);
+        let tokenInfo = app.orwell.dsIndex.getTokenSettings(req.params.ticker) || {};
         tokenInfo.address = app.orwell.getTokenAddress(req.params.ticker);
         tokenInfo.holders = app.orwell.dsIndex.getTokenHolders(req.params.ticker);
 

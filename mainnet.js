@@ -1,4 +1,5 @@
 const DAPP = require('./index');
+const fs = require('fs');
 
 process.on('uncaughtException', function (err) {
     console.log('UNCAUGHT EXCEPTION:', err);
@@ -7,7 +8,8 @@ process.on('uncaughtException', function (err) {
 let app = DAPP.create('./config.json', 'main');
 
 app.on("app.debug", function (data) {
-    console.log("[" + new Date().toLocaleTimeString() + "]", "< " + data.level + " >", data.module, data.text);
+    if (app.logIsEnabled(data.module, data.level))
+        console.log("[" + new Date().toLocaleTimeString() + "]", "< " + data.level + " >", data.module, data.text);
 });
 
 app.init();

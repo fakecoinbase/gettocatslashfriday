@@ -25,6 +25,8 @@ class app extends EventEmitter {
         this.miningstate = '';
         this.syncstate = '';
         this.skiplist = [];
+        this.logModules = ['config', 'crypto', 'tools', 'db', 'storage', 'rpc', 'index', 'app', 'orwell', 'validatormanager', 'wallet', 'networkhandler', 'dapps', 'ui', 'network', 'dApps', 'handler', 'error', 'utxo', 'validatormanager/timer'];
+        this.logLevels = ['info', 'debug', 'error', 'warn'];
 
         process.on('unhandledRejection', (reason, p) => {
             console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
@@ -42,6 +44,9 @@ class app extends EventEmitter {
                 ])
             })
             .then(() => {
+
+                this.logModules = this.cnf('logs').modules;
+                this.logLevels = this.cnf('logs').levels;
                 this.emit("beforeinit");
                 this.emit("_caninit");
             })
@@ -231,6 +236,34 @@ class app extends EventEmitter {
             this.network.protocol.initNode(peers[i].split(":").join("//"));
         }
     }
+    logIsEnabled(module, level) {
+        if (this.logModules.indexOf(module) != -1) {
+            if (this.logLevels.indexOf(level) != -1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+    excludeLogModules(blacklist) {
+        for (let i in blacklist) {
+            let index = this.logModules.indexOf(blacklist[i]);
+            if (index == -1)
+                continue;
+            this.logModules.splice(index, 1);
+        }
+
+        return true;
+    }
+    includeLogModules(list) {
+        let a = this.logModules.concat(list);
+        return this.logModules = a.filter(function (item, pos) {
+            return a.indexOf(item) == pos;
+        })
+    }
+    setLogModules(list) {
+        return this.logModules = list;
+    }
     getDefaultConfig() {
         return {
             "port": 19841,
@@ -346,6 +379,10 @@ class app extends EventEmitter {
             "dapps": {
                 "http": "80",
                 "http.timeout": 60000,
+            },
+            "logs": {
+                "modules": ['config', 'crypto', 'tools', 'db', 'storage', 'rpc', 'index', 'app', 'orwell', 'validatormanager', 'wallet', 'networkhandler', 'dapps', 'ui', 'network', 'dApps', 'handler', 'error', 'utxo', 'validatormanager/timer'],
+                "levels": ['info', 'debug', 'error', 'warn'],
             }
         }
     }
