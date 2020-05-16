@@ -17,6 +17,8 @@ class validatorManager extends EventEmitter {
         //enables only when node in network and fully synced
         //if (!this.app.cnf('consensus').genesisMode && Number.isFinite(this.app.orwell.index.get('top').height))
         //    this.checkActiveValidator();
+
+        this.initValidators();
     }
     checkActiveValidator() {
         let old = this.current;
