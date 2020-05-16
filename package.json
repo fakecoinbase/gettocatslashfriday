@@ -11,7 +11,7 @@
         "orwell"
     ],
     "dependencies": {
-        "@nanocat/friday-serialized": "^0.0.16",
+        "@nanocat/friday-serialized": "^0.0.17",
         "base-58": "^0.0.1",
         "bitowl": "^0.0.2",
         "bitpony": "^0.0.1",
@@ -51,7 +51,7 @@
     },
     "scripts": {
         "restart": "sudo supervisorctl restart friday:* && echo 'done\n'",
-        "up": "git pull -v && npm i && sudo supervisorctl restart friday:* && echo 'done\n'",
+        "upd": "git pull -v && npm i && sudo supervisorctl restart friday:* && echo 'done\n'",
         "main": "node ./mainnet.js",
         "test": "node ./testnet.js"
     }

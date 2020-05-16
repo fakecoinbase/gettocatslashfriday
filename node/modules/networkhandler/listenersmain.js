@@ -401,7 +401,10 @@ module.exports = function (app) {
                                 reject("blocksync error: " + e.message);
                             }
                         })
-                    });
+                    })
+                    .catch(e=>{
+                        return Promise.resolve();
+                    })
             }
 
             promise
