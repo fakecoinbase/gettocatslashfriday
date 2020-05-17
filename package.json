@@ -50,8 +50,8 @@
         "mocha": "^5.2.0"
     },
     "scripts": {
-        "restart": "sudo supervisorctl restart friday:* && echo 'done\n'",
-        "upd": "git pull -v && npm i && sudo supervisorctl restart friday:* && echo 'done\n'",
+        "restart": "supervisorctl restart friday:* && echo 'done\n'",
+        "upd": "git pull -v && npm i && supervisorctl restart friday:* && echo 'done\n'",
         "main": "node ./mainnet.js",
         "test": "node ./testnet.js"
     }
