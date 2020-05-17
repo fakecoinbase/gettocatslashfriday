@@ -164,7 +164,7 @@ module.exports = (app, orwell) => {
                     block = app.orwell.BLOCK.fromJSON(block);
                     block.confirmation = orwell.index.get('top').height - h + 1;
                 } else if (id != '0000000000000000000000000000000000000000000000000000000000000000')
-                    throw new Error('Block not found ' + id);
+                    return false;    //throw new Error('Block not found ' + id);
 
                 return block;
             }
