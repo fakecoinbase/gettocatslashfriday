@@ -20,7 +20,7 @@ module.exports = (app) => {
             let arr = this.get('mempooltxlist');
             if (!arr || !(arr instanceof Array))
                 arr = [];
-                
+
             return arr;
         }
         setList(arr) {
@@ -253,7 +253,27 @@ module.exports = (app) => {
         getTx(hash) {
             return this.get(hash);
         }
+        checkAndUnlock(address) {
+            let addrind = this.get("address/" + address);
+            if (!addrind || !(addrind instanceof Array))
+                addrind = [];
 
+            for (let i in addrind) {
+                if (addrind[i].spent || addrind[i].spentHash || addrind[i].locked) {
+                    if (!this.getTx(addrind[i].spentHash)) {
+                        try {
+                            this.app.orwell.getTx(addrind[i].spentHash)
+                        } catch (e) {
+                            delete addrind[i].spentHash;
+                            delete addrind[i].locked;
+                            delete addrind[i].spent;
+                        }
+                    }
+                }
+            }
+
+            this.set("address/" + address, addrind);
+        }
     }
 
     return MemPool;

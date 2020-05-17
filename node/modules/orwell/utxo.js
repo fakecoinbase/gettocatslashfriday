@@ -324,6 +324,7 @@ module.exports = (app) => {
             }
 
             this.set("address/" + address, addrind);
+            this.app.orwell.mempool.checkAndUnlock(address);
             return addrind;
         }
 

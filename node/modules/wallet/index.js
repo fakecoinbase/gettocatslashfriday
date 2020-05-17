@@ -101,6 +101,19 @@ class wallet {
             }
         }
 
+        let arrmem = this.app.orwell.mempool.get("address/" + addr);
+        if (!arrmem)
+            arrmem = [];
+        for (let i in arrmem) {
+            if (!arrmem[i].spent && !arrmem[i].spentHash && !arrmem[i].locked) {
+                if (height) {
+                    if (arr[i] < height)
+                        a.push(arr[i]);
+                } else
+                    a.push(arr[i]);
+            }
+        }
+
         return a;
 
     }
@@ -321,7 +334,7 @@ class wallet {
         for (let i in addr_amount_arr) {
             outputs.push({
                 amount: addr_amount_arr[i],
-                scriptPubKey: this.app.orwell.SCRIPT.addressToScript(i)
+                address: i
             })
         }
 
@@ -336,7 +349,7 @@ class wallet {
 
         outputs.push({
             amount: res.change,
-            scriptPubKey: this.app.orwell.SCRIPT.addressToScript(changeaddress.address)
+            address: changeaddress.address
         })
 
         let tx = this.app.orwell.TX.createFromRaw(inputs, outputs, privates, 0, this.app.cnf('consensus').txversion, datascript);
@@ -495,7 +508,7 @@ class wallet {
         tx = this.createTransactionFromAddress(addr, address_destination, amount, datascript, fee);
         if (tx.error)
             return Promise.reject(tx);
-            
+
         if (tx.isValid()) {
             promise = this.makesUnspentLocked(tx)
                 .then(() => {
@@ -652,7 +665,24 @@ class wallet {
                     }
                 }
 
-                return this.app.orwell.utxo.set("address/" + writer, addrind);
+                let addrind2 = this.app.orwell.mempool.get("address/" + writer);
+                if (!addrind2 || !(addrind2 instanceof Array))
+                    addrind2 = [];
+
+                    for (let k in addrind2) {
+                        if (addrind2[k].tx == inp.hash && addrind2[k].index == inp.index) {
+                            addrind2[k].spentHash = t.hash;
+                            addrind2[k].spent = 1;
+                            addrind2[k].locked = 1;
+                            changed++;
+                            break;
+                        }
+                    }  
+
+                return Promise.all([
+                    this.app.orwell.utxo.set("address/" + writer, addrind),
+                    this.app.orwell.mempool.set("address/" + writer, addrind2)
+                ]);
             })
         }
 

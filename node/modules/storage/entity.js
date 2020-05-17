@@ -37,8 +37,8 @@ class entity {
 
         if (!offset)
             offset = 0;
-
-        let res = this.coll.chain().find().limit(limit).offset(offset);
+            
+        let res = this.coll.chain().find().offset(offset).limit(limit);
         if (sortby)
             res = res.simplesort(sortby[0], !!sortby[1]);
 

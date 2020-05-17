@@ -376,9 +376,14 @@ module.exports = function (app) {
             return false;
 
         if (message.type == 'start') {
+
+            if (app.db.get("activesync") && typeof app.db.get("activesync") == 'string')
+                return false;
+
             app.network.nodes.setState(connectionInfo, 'syncer');
             app.db.set("sync/" + message.hash, []);
             app.db.set("activesync", message.hash);
+            app.db.set("activesyncer", app.network.protocol.getAddressUniq(connectionInfo));
         }
 
         if (message.type == 'finish') {
@@ -402,7 +407,7 @@ module.exports = function (app) {
                             }
                         })
                     })
-                    .catch(e=>{
+                    .catch(e => {
                         return Promise.resolve();
                     })
             }
@@ -440,6 +445,10 @@ module.exports = function (app) {
         let activesync = app.db.get("activesync");
         if (activesync && !app.tools.emptyObject(activesync)) {
             if (selfMessage)
+                return false;
+
+            let syncer = app.db.get("activesyncer");
+            if (syncer != app.network.protocol.getAddressUniq(connectionInfo))
                 return false;
 
             let blocklist = app.db.get("sync/" + activesync);
@@ -641,10 +650,10 @@ module.exports = function (app) {
     });
 
     app.on("chain.block.seek", (data) => {
-        app.network.protocol.sendAll('getdata', {
+        /*app.network.protocol.sendAll('getdata', {
             type: 'blockdata',
             hash: data.hash
-        });
+        });*/
     });
 
 }

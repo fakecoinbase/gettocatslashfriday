@@ -20,7 +20,6 @@ class orwell {
 
         this.GENESIS = this.app.cnf("genesis");
         this.ADDRESS = require('./primitives/address')(app);
-        this.SCRIPT = require('./primitives/script')(app);
 
         let primitives = require('./primitives/index')(app);
 
@@ -144,7 +143,9 @@ class orwell {
         let height = this.index.getTop().height || 0;
         let hash = this.index.getTop().id || this.app.cnf('genesis').hash;
         let finded = false;
-        while (i < cnt) {
+
+        let k = Math.ceil(cnt / 1000) + 1;
+        for (let i = 0; (i / 1000) + 1 <= k; i += 1000) {
             let list = this.blockpool.loadBlocks(1000, i) || []
             for (let k in list) {
 
@@ -165,7 +166,6 @@ class orwell {
                 });
             }
 
-            i += 1000;
         }
 
 
@@ -206,6 +206,11 @@ class orwell {
 
     addBlockFromNetwork(peer, data, context, cb) {
         let b;
+
+        if (this.index.get("block/" + data.getId()).height){
+            cb(data);
+            return Promise.resolve(data);
+        }
 
         if (context && isFinite(context.height))
             data.height = context.height;
@@ -431,7 +436,22 @@ class orwell {
     }
 
     getBlock(hash) {
-        return this.consensus.dataManager.getData(hash);
+        try {
+            return this.consensus.dataManager.getData(hash);
+        } catch (e) {
+            try {
+                return this.consensus.dataManager.getSideData(hash);
+            } catch (e) {
+                try {
+                    return this.consensus.dataManager.getOrphanData(hash);
+                } catch (e) {
+
+                }
+            }
+        }
+
+        throw new Error('block ' + hash + " not exist in any pool");
+
     }
 
     getTx(hash) {

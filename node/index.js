@@ -269,6 +269,7 @@ class app extends EventEmitter {
             "port": 19841,
             "magic": "aa3a2b2f",
             "nodes": [
+                "127.0.0.1//19841",
                 "kenny.node.orwellscan.org//19841",
                 "morty.node.orwellscan.org//19841",
                 "piter.node.orwellscan.org//19841",

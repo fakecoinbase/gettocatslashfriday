@@ -1163,9 +1163,13 @@ module.exports = function (app, chain) {
                 return validator.addError("Block time invalid or system time is wrong", 'block_time_invalid');
             }
 
-            let prevblock = app.orwell.getBlock(block.prev);
-            if (block.getTime() < prevblock.getTime()) {
-                return validator.addError("Block time invalid, prevtime > block.time", 'block_time_prevblock_invalid');
+            try {
+                let prevblock = app.orwell.getBlock(block.prev);
+                if (block.getTime() < prevblock.getTime()) {
+                    return validator.addError("Block time invalid, prevtime > block.time", 'block_time_prevblock_invalid');
+                }
+            } catch (e) {
+                console.log('maybe orphan block');
             }
 
             return true;
@@ -1296,12 +1300,13 @@ module.exports = function (app, chain) {
 
             }
 
-            //consensusjs must handle this before
-            if (prev && prev.getId())
+            //consensusjs must handle this //after
+            /*if (prev && prev.getId())
                 return true;
             else
                 return validator.addError("Prev block is not exist in any pool", 'block_prev_missing');
-
+            */
+            return true;
         });
         //12. Check that nBits value matches the difficulty rules
         //none
@@ -1312,8 +1317,15 @@ module.exports = function (app, chain) {
             if (app.cnf('consensus').genesisMode)
                 return true;
 
-            let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
-            if (block.getTime() <= chain.getTimeForHeight(height - 1)) {
+            try {
+                let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
+                if (block.getTime() <= chain.getTimeForHeight(height - 1)) {
+                    return validator.addError("Block time invalid", 'block_time_invalid');
+                }
+            } catch (e) {
+                if (e.message.indexOf('is not exist') != -1)
+                    return true;
+
                 return validator.addError("Block time invalid", 'block_time_invalid');
             }
 
