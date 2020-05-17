@@ -32,7 +32,7 @@ module.exports = (app) => {
         getBlock(hash) {
             let block = this.get(hash);
             if (!block)
-                throw new Error('can not find block ' + hash);
+                return false;//throw new Error('can not find block ' + hash);
             return block
         }
         removeBlock(hash) {
