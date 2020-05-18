@@ -420,6 +420,7 @@ module.exports = function (app) {
                         return new Promise((resolve, reject) => {
                             try {
                                 app.orwell.addBlockFromNetwork(null, app.orwell.BLOCK.fromJSON(blocklist[i]), 'sync', (block1, res) => {
+                                    console.log('block processed', block1.getId(), res.chain, 'chain:', block1.chain)
                                     resolve(block1);
                                 });
                             } catch (e) {

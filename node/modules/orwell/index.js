@@ -209,8 +209,8 @@ class orwell {
     addBlockFromNetwork(peer, data, context, cb) {
         let b;
 
-        if (this.index.get("block/" + data.getId()).height){
-            cb(data);
+        if (this.index.get("block/" + data.getId()).height) {
+            cb(data, { 'chain': 'main_dup' });
             return Promise.resolve(data);
         }
 
@@ -228,6 +228,7 @@ class orwell {
         let res = this.consensus.getConsensus().applyData(peer, data);
         return res.promise
             .then((block) => {
+                block.chain = res.chain;
                 b = block;
                 if (res.chain == 'main')
                     return this.updateLatestBlock(block);
