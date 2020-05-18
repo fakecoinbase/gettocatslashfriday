@@ -1159,14 +1159,16 @@ module.exports = function (app, chain) {
                 return validator.addError("Block time invalid or system time is wrong", 'block_time_invalid');
             }
 
+            let prevblock;
             try {
-                let prevblock = app.orwell.getBlock(block.getPrevId());
-                if (block.getTime() < prevblock.getTime()) {
-                    return validator.addError("Block time invalid, prevtime > block.time", 'block_time_prevblock_invalid');
-                }
+                prevblock = app.orwell.getBlock(block.getPrevId());
             } catch (e) {
                 console.log('blocktimestamp', e);
                 return true;
+            }
+
+            if (block.getTime() < prevblock.getTime()) {
+                return validator.addError("Block time invalid, prevtime > block.time", 'block_time_prevblock_invalid');
             }
 
             return true;
@@ -1254,17 +1256,14 @@ module.exports = function (app, chain) {
                 amount.iadd(new BN("" + outs[o].amount));
             }
 
-            try {
-                let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
+            let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
+            let val = new BN(app.orwell.getBlockValue(fullfee.toNumber(), (height)));
 
-                let val = new BN(app.orwell.getBlockValue(fullfee.toNumber(), (height)));
+            if (!height && height != 0)
+                return true;//add to side chain
 
-                if (!(amount.add(fullfee).eq(val))) {
-                    return validator.addError("Coinbase amount is lesser or bigger then minimum blockValue for height: " + (height), 'block_coinbase_amount_invalid');
-                }
-            } catch (e) {
-                console.log('block_coinbase_sig', e);
-                return true;
+            if (!(amount.add(fullfee).eq(val))) {
+                return validator.addError("Coinbase amount is lesser or bigger then minimum blockValue for height: " + (height), 'block_coinbase_amount_invalid');
             }
 
             return res;

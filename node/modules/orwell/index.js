@@ -439,22 +439,18 @@ class orwell {
     }
 
     getBlock(hash) {
-        try {
-            return this.consensus.dataManager.getData(hash);
-        } catch (e) {
-            try {
-                return this.consensus.dataManager.getSideData(hash);
-            } catch (e) {
-                try {
-                    return this.consensus.dataManager.getOrphanData(hash);
-                } catch (e) {
+        let mainblock = this.consensus.dataManager.getData(hash);
+        let sideblock = this.consensus.dataManager.getSideData(hash);
+        let orphanblock = this.consensus.dataManager.getOrphanData(hash);
 
-                }
-            }
-        }
+        if (mainblock)
+            return mainblock;
+        if (sideblock)
+            return sideblock;
+        if (orphanblock)
+            return orphanblock;
 
         throw new Error('block ' + hash + " not exist in any pool");
-
     }
 
     getTx(hash) {

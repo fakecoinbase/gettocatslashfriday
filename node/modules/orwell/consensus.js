@@ -163,6 +163,7 @@ module.exports = (app, orwell) => {
                     let h = block.height;
                     block = app.orwell.BLOCK.fromJSON(block);
                     block.confirmation = orwell.index.get('top').height - h + 1;
+                    block.chain = 'main';
                 } else if (id != '0000000000000000000000000000000000000000000000000000000000000000')
                     return false;    //throw new Error('Block not found ' + id);
 
@@ -181,6 +182,7 @@ module.exports = (app, orwell) => {
                     delete block.meta
                     delete block.$loki;
                     block = app.orwell.BLOCK.fromJSON(block);
+                    block.chain = 'side';
                 }
 
                 return block;
@@ -198,6 +200,7 @@ module.exports = (app, orwell) => {
                     delete block.meta
                     delete block.$loki;
                     block = app.orwell.BLOCK.fromJSON(block);
+                    block.chain = 'orphan';
                 }
 
                 return block;
@@ -221,8 +224,9 @@ module.exports = (app, orwell) => {
                     return -1;
 
                 let blockNumber = orwell.index.get('block/' + dataId).height;
-                if (!blockNumber && blockNumber != 0)
-                    throw new Error('block ' + dataId + ' is not exist');
+                if (!blockNumber && blockNumber != 0) {
+                    blockNumber = orwell.index.get('side/block/' + dataId).height;
+                }
                 return blockNumber;
             }
 
@@ -530,7 +534,7 @@ module.exports = (app, orwell) => {
                     numberTo = 0;
                 let hashTo = orwell.index.get('index/' + numberTo);
 
-                
+
                 console.log('get data slice hashes', hash, hashTo)
 
                 let block = this.getData(hash);
