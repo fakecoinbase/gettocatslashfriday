@@ -519,6 +519,7 @@ module.exports = (app, orwell) => {
             }
 
             getDataSlice(numberFrom, numberTo) {
+                console.log('get data slice', numberFrom, numberTo)
                 let hash = orwell.index.get('index/' + numberFrom);
                 if (!hash) {
                     numberFrom -= 1;
@@ -528,6 +529,10 @@ module.exports = (app, orwell) => {
                 if (numberTo < 0)
                     numberTo = 0;
                 let hashTo = orwell.index.get('index/' + numberTo);
+
+                
+                console.log('get data slice hashes', hash, hashTo)
+
                 let block = this.getData(hash);
                 if (hash == hashTo)
                     return [block];

@@ -268,7 +268,9 @@ module.exports = function (app) {
             let offsetIndex = 0;
             let sendOffset = 0;
 
+            //height down
             startIndex = app.orwell.index.get("block/" + message.hashStart).height;
+            //height upper
             if (message.hashStop)
                 stopIndex = app.orwell.index.get("block/" + message.hashStop).height;
 
