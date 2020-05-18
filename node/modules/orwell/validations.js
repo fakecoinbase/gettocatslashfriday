@@ -1152,16 +1152,21 @@ module.exports = function (app, chain) {
         chain.BLOCK.VALIDATOR.addRule('blocktimestamp', function (validator, context, app_) {
             let block = validator.block;
 
-            if (block.getHash() == app.orwell.GENESIS.hash && block.prev == '0000000000000000000000000000000000000000000000000000000000000000')
+            if (block.getHash() == app.orwell.GENESIS.hash && block.getPrevId() == '0000000000000000000000000000000000000000000000000000000000000000')
                 return true;
 
             if (block.getTime() >= (Date.now() / 1000 + 2 * 60 * 60)) {
                 return validator.addError("Block time invalid or system time is wrong", 'block_time_invalid');
             }
 
-            let prevblock = app.orwell.getBlock(block.prev);
-            if (block.getTime() < prevblock.getTime()) {
-                return validator.addError("Block time invalid, prevtime > block.time", 'block_time_prevblock_invalid');
+            try {
+                let prevblock = app.orwell.getBlock(block.getPrevId());
+                if (block.getTime() < prevblock.getTime()) {
+                    return validator.addError("Block time invalid, prevtime > block.time", 'block_time_prevblock_invalid');
+                }
+            } catch (e) {
+                console.log('blocktimestamp', e);
+                return true;
             }
 
             return true;
@@ -1249,12 +1254,17 @@ module.exports = function (app, chain) {
                 amount.iadd(new BN("" + outs[o].amount));
             }
 
-            let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
+            try {
+                let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
 
-            let val = new BN(app.orwell.getBlockValue(fullfee.toNumber(), (height)));
+                let val = new BN(app.orwell.getBlockValue(fullfee.toNumber(), (height)));
 
-            if (!(amount.add(fullfee).eq(val))) {
-                return validator.addError("Coinbase amount is lesser or bigger then minimum blockValue for height: " + (height), 'block_coinbase_amount_invalid');
+                if (!(amount.add(fullfee).eq(val))) {
+                    return validator.addError("Coinbase amount is lesser or bigger then minimum blockValue for height: " + (height), 'block_coinbase_amount_invalid');
+                }
+            } catch (e) {
+                console.log('block_coinbase_sig', e);
+                return true;
             }
 
             return res;
@@ -1285,7 +1295,12 @@ module.exports = function (app, chain) {
             if (block.getId() == chain.GENESIS.hash && block.getPrevId() == '0000000000000000000000000000000000000000000000000000000000000000')
                 return true;
 
-            prev = chain.getBlock(block.getPrevId());
+            try {
+                prev = chain.getBlock(block.getPrevId());
+            } catch (e) {
+                console.log('block_prev_mainchain', e);
+                return true;
+            }
 
             //consensusjs must handle this //after
             /*if (prev && prev.getId())
@@ -1304,9 +1319,14 @@ module.exports = function (app, chain) {
             if (app.cnf('consensus').genesisMode)
                 return true;
 
-            let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
-            if (block.getTime() <= chain.getTimeForHeight(height - 1)) {
-                return validator.addError("Block time invalid", 'block_time_invalid');
+            try {
+                let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
+                if (block.getTime() <= chain.getTimeForHeight(height - 1)) {
+                    return validator.addError("Block time invalid", 'block_time_invalid');
+                }
+            } catch (e) {
+                console.log('mediantimevalid', e);
+                return true;
             }
 
             return true;
