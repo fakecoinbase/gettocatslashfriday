@@ -176,7 +176,7 @@ protocol.prototype = {
                     this.app.debug('info', 'network', "reconnected to peer " + list[i])
                 })
             } else {
-                let d = this.get("data/" + list[i]);
+                let d = this.nodes.get("data/" + list[i]);
                 if (Date.now() / 1000 - d.lastRecv > 35)
                     //TODO: send only for nodes with latency > N sec
                     this.sendOne(this.getUniqAddress(list[i]), 'ping', {
