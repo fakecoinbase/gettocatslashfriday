@@ -431,9 +431,6 @@ module.exports = function (app) {
                             }
                         })
                     })
-                    .catch(e => {
-                        return Promise.resolve();
-                    })
             }
 
             promise
