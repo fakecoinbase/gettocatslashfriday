@@ -49,6 +49,7 @@ class network {
                     this.app.debug('info', 'network', 'initialize client')
                     this.initClient();
                     this.inited = true;
+                    this.protocol.createCheckNodeTask(60000);
                     resolve();
                 });
         });
@@ -208,7 +209,7 @@ class network {
 
         this.app.on("net.send", (message, rinfo, isFirstMessage) => {
 
-            this.protocol.checkNodes();
+            //this.protocol.checkNodes();
             let nlist = this.protocol.getNodeList();
             let msg = message;
 

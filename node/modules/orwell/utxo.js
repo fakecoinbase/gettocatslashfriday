@@ -20,6 +20,7 @@ module.exports = (app) => {
         addTx(tx, options) {
             app.debug("info", "utxo", "UTXO tx: " + tx.hash)
 
+            app.orwell.utxh.addInputs(tx, options);
             let outs = tx.out;
             for (let o in outs) {
                 var out = outs[o];
@@ -35,6 +36,7 @@ module.exports = (app) => {
                 let prevout;
                 try {
                     prevout = app.orwell.getOut(inpt.hash, inpt.index);
+                    app.orwell.utxh.spentInput(prevout.address, inpt.hash, inpt.index, tx.hash, options);
                     this.removeOutIndex(tx.hash, prevout.address, inpt.hash, inpt.index);
                 } catch (e) {
                     console.log('error', e)

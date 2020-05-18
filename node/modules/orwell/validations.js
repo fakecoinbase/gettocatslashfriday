@@ -1129,13 +1129,9 @@ module.exports = function (app, chain) {
             let block = validator.block;
 
             if (context.trigger == 'relay') {
-                try {
-                    let b = chain.getBlock(block.getHash());
-                    if (b.getHash() == block.getHash())
-                        return validator.addError("Block already exist", 'block_duplicate');
-                } catch (e) {
-
-                }
+                let b = chain.getBlock(block.getHash());
+                if (b.getHash() == block.getHash())
+                    return validator.addError("Block already exist", 'block_duplicate');
             }
 
             //orphan index check
@@ -1163,13 +1159,9 @@ module.exports = function (app, chain) {
                 return validator.addError("Block time invalid or system time is wrong", 'block_time_invalid');
             }
 
-            try {
-                let prevblock = app.orwell.getBlock(block.prev);
-                if (block.getTime() < prevblock.getTime()) {
-                    return validator.addError("Block time invalid, prevtime > block.time", 'block_time_prevblock_invalid');
-                }
-            } catch (e) {
-                console.log('maybe orphan block');
+            let prevblock = app.orwell.getBlock(block.prev);
+            if (block.getTime() < prevblock.getTime()) {
+                return validator.addError("Block time invalid, prevtime > block.time", 'block_time_prevblock_invalid');
             }
 
             return true;
@@ -1261,7 +1253,6 @@ module.exports = function (app, chain) {
 
             let val = new BN(app.orwell.getBlockValue(fullfee.toNumber(), (height)));
 
-
             if (!(amount.add(fullfee).eq(val))) {
                 return validator.addError("Coinbase amount is lesser or bigger then minimum blockValue for height: " + (height), 'block_coinbase_amount_invalid');
             }
@@ -1294,11 +1285,7 @@ module.exports = function (app, chain) {
             if (block.getId() == chain.GENESIS.hash && block.getPrevId() == '0000000000000000000000000000000000000000000000000000000000000000')
                 return true;
 
-            try {
-                prev = chain.getBlock(block.getPrevId());
-            } catch (e) {
-
-            }
+            prev = chain.getBlock(block.getPrevId());
 
             //consensusjs must handle this //after
             /*if (prev && prev.getId())
@@ -1317,15 +1304,8 @@ module.exports = function (app, chain) {
             if (app.cnf('consensus').genesisMode)
                 return true;
 
-            try {
-                let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
-                if (block.getTime() <= chain.getTimeForHeight(height - 1)) {
-                    return validator.addError("Block time invalid", 'block_time_invalid');
-                }
-            } catch (e) {
-                if (e.message.indexOf('is not exist') != -1)
-                    return true;
-
+            let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
+            if (block.getTime() <= chain.getTimeForHeight(height - 1)) {
                 return validator.addError("Block time invalid", 'block_time_invalid');
             }
 

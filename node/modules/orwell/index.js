@@ -33,6 +33,7 @@ class orwell {
         let SIDE = require('./primitives/sidepool')(app);
         let index = require('./indexer')(app);
         let UTXO = require('./utxo')(app);
+        let UTXH = require('./utxh')(app);
         let DSINDEX = require('./dsindex')(app);
 
         require('./validations')(this.app, this);
@@ -44,6 +45,7 @@ class orwell {
         this.sidepool = new SIDE();
         this.index = new index();
         this.utxo = new UTXO();
+        this.utxh = new UTXH();
         this.dsIndex = new DSINDEX();
         //this.miningWork = new MiningWork();
         this.checkpoint = require("./checkpoints");

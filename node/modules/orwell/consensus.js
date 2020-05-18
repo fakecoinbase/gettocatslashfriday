@@ -157,7 +157,7 @@ module.exports = (app, orwell) => {
             getData(id) {
                 let block = false;
                 block = orwell.blockpool.getBlock(id)
-                if (block.hash) {
+                if (block.p) {
                     delete block.meta
                     delete block.$loki;
                     let h = block.height;
@@ -177,7 +177,7 @@ module.exports = (app, orwell) => {
 
                 }
 
-                if (block.hash) {
+                if (block.p) {
                     delete block.meta
                     delete block.$loki;
                     block = app.orwell.BLOCK.fromJSON(block);

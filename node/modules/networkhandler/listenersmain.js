@@ -89,7 +89,7 @@ module.exports = function (app) {
                     response: {
                         type: 'blocks',
                         hashStart: app.orwell.index.getTop().id,
-                        hashStop: 0,
+                        hashStop: d.top.id,
                         offset: 0,
                     }
                 })
@@ -183,6 +183,26 @@ module.exports = function (app) {
             app.emit("app.chain.sync", { status: 'resync' });
 
         app.network.protocol.sendOne(connectionInfo, 'pong', {});
+    });
+
+    app.on("handler.needupdate", function (message, connectionInfo, selfMessage) {
+
+        if (selfMessage)
+            return false;
+
+        if (app.db.get("activesync") && typeof app.db.get("activesync") == 'string')
+            return false;//in sync process now
+
+        app.setSyncState('readyToSync');
+
+        //this node have less number block then in 
+        app.network.protocol.sendOne(connectionInfo, 'getdata', {
+            type: 'blocks',
+            hashStart: app.orwell.index.getTop().id,
+            hashStop: message.lastblock.id,
+            offset: 0,
+        });
+
     });
 
     app.on("handler.pong", function (message, connectionInfo, selfMessage) {
@@ -303,6 +323,7 @@ module.exports = function (app) {
                         'type': 'finish',
                         'hash': list[0].getHash() + list[list.length - 1].getHash(),
                         'hasNext': sendOffset,
+                        'lastblock': app.orwell.index.getTop()
                     });
                     app.network.nodes.setState(connectionInfo, 'synced');
                     return Promise.resolve()
@@ -423,7 +444,7 @@ module.exports = function (app) {
                         app.network.protocol.sendOne(connectionInfo, 'getdata', {
                             type: 'blocks',
                             hashStart: app.orwell.index.getTop().id,
-                            hashStop: 0,
+                            hashStop: message.lastblock.id,
                             offset: 0,
                         });
                     } else {
@@ -530,27 +551,6 @@ module.exports = function (app) {
                 }
 
             })
-
-    });
-
-
-    app.on("handler.needupdate", function (message, connectionInfo, selfMessage) {
-
-        if (selfMessage)
-            return false;
-
-        if (app.db.get("activesync") && typeof app.db.get("activesync") == 'string')
-            return false;//in sync process now
-
-        app.setSyncState('readyToSync');
-
-        //this node have less number block then in 
-        app.network.protocol.sendOne(connectionInfo, 'getdata', {
-            type: 'blocks',
-            hashStart: app.orwell.index.getTop().id,
-            hashStop: 0,
-            offset: 0,
-        });
 
     });
 

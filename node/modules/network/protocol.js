@@ -175,6 +175,13 @@ protocol.prototype = {
                 this.addNode(list[i], () => {
                     this.app.debug('info', 'network', "reconnected to peer " + list[i])
                 })
+            } else {
+                let d = this.get("data/" + list[i]);
+                if (Date.now() / 1000 - d.lastRecv > 35)
+                    //TODO: send only for nodes with latency > N sec
+                    this.sendOne(this.getUniqAddress(list[i]), 'ping', {
+                        latest: this.app.orwell.index.getTop(),
+                    });
             }
 
 
@@ -245,11 +252,6 @@ protocol.prototype = {
 
         return node_list
     },
-    saveNodesToList: function (nodes) {
-        const fs = require('fs')
-        let path = '';
-        fs.writeFileSync(path, nodes.join("\n"));
-    },
     saveNodes: function () {
         const fs = require('fs')
         let path = '';//app.getPath('userData') + "/nodes.conf";
@@ -272,8 +274,6 @@ protocol.prototype = {
             if (nodes[i])
                 node_list.push(nodes[i].trim());
         }
-
-        this.saveNodesToList(node_list)
     },
     getRandomNode: function () {
         var list = this.exceptNode(""), n = list[rand(0, list.length - 1)];
@@ -293,12 +293,11 @@ protocol.prototype = {
             .replace("%os_ver%", os.release())
             .replace("%uptime%", process.uptime());
     },
-    createCheckNodeTask: function (seconds) {
-        setTimeout(function () {
+    createCheckNodeTask(seconds) {
+        setTimeout(() => {
 
             this.app.debug('debug', 'network', "check nodes");
             this.checkNodes();
-            this.saveNodes();
             this.createCheckNodeTask(seconds)
 
         }, seconds);
