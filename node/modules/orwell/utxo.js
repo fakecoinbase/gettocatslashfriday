@@ -113,22 +113,22 @@ module.exports = (app) => {
             if (!addrind || !(addrind instanceof Array))
                 addrind = [];
 
-            let finded = 0, index = -1;
+            let finded = 0, indx = -1;
             for (let i in addrind) {
                 if (addrind[i].tx == tx && addrind[i].index == index) {
-                    finded = 1, index = i;
+                    finded = 1, indx = i;
                     break;
                 }
             }
 
             if (finded) {
-                addrind.splice(index, 1)
+                addrind.splice(indx, 1)
 
                 this.set("address/" + addr, addrind)
                 let list = this.getList();
-                let indx = list.indexOf(tx + ":" + index);
-                if (indx != -1)
-                    list.splice(indx, 1);
+                let indx2 = list.indexOf(tx + ":" + index);
+                if (indx2 != -1)
+                    list.splice(indx2, 1);
                 this.setList(list);
             }
 
