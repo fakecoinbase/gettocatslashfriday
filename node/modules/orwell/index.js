@@ -183,7 +183,7 @@ class orwell {
             let h = this.index.get('block/' + block.getPrevId()).height;
             if (h && h > 0) {
                 promise = promise.then(() => {
-                    return this.consensus.dataManager.indexData(data, {
+                    return this.consensus.dataManager.indexData(block, {
                         chain: 'main',
                         height: h + 1,
                     })
