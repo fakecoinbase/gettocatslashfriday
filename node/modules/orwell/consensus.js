@@ -546,7 +546,7 @@ module.exports = (app, orwell) => {
                     hash = orwell.index.get('block/' + hash).prev;
                     block = this.getData(hash);
                     list.unshift(block);
-                } while (hash != hashTo && hash != this.getGenesis().hash);
+                } while (hash != hashTo || hash != this.getGenesis().hash);
 
                 return list;
             }
