@@ -209,7 +209,7 @@ module.exports = (app, orwell) => {
             getDataFromHeight(h) {
                 let blockHash = orwell.index.get('index/' + h);
                 if (!blockHash)
-                    throw new Error('block ' + blockHash + ' is not exist');
+                    throw new Error('block height ' + h + ' is not exist');
                 return this.getData(blockHash);
             }
 
