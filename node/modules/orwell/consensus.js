@@ -548,7 +548,7 @@ module.exports = (app, orwell) => {
 
                     if (!block.getId){
                         console.log('missing block ', hash);
-                        block = this.getSideData(hash);
+                        block = this.getSideData(hash);//why?!
                         console.log('get from side', block);
                     }
 
@@ -557,8 +557,7 @@ module.exports = (app, orwell) => {
                     if (hash == hashTo) 
                         break;
                     
-
-                } while (hash != this.getGenesis().hash);
+                } while (hash != hashTo && hash != this.getGenesis().hash);
 
                 return list;
             }
