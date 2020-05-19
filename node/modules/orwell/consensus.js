@@ -538,25 +538,33 @@ module.exports = (app, orwell) => {
                 console.log('get data slice hashes', hash, hashTo)
 
                 let block = this.getData(hash);
+                let num = numberFrom;
+
                 if (hash == hashTo)
                     return [block];
 
                 let list = [block];
                 do {
-                    hash = orwell.index.get('block/' + hash).prev;
+                    let a = orwell.index.get('block/' + hash);
+                    hash = a.prev;
+                    num = a.height;
                     block = this.getData(hash);
 
-                    if (!block.getId){
+                    if (!block.getId) {
                         console.log('missing block ', hash);
                         block = this.getSideData(hash);//why?!
                         console.log('get from side', block);
+                        console.log('hash=', hash, 'hashTo=', hashTo);
                     }
 
                     list.unshift(block);
 
-                    if (hash == hashTo) 
+                    if (hash == hashTo)
                         break;
-                    
+
+                    if (numberTo > num)
+                        break;
+
                 } while (hash != hashTo && hash != this.getGenesis().hash);
 
                 return list;
