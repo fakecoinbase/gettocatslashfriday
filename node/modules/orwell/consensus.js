@@ -546,9 +546,13 @@ module.exports = (app, orwell) => {
                     hash = orwell.index.get('block/' + hash).prev;
                     block = this.getData(hash);
                     list.unshift(block);
-                    
-                    if (block.getId() == hashTo)
+
+                    if (!block.getId)
+                        console.log('missing block ', hash, block);
+
+                    if (hash == hashTo) {
                         break;
+                    }
 
                 } while (hash != this.getGenesis().hash);
 
