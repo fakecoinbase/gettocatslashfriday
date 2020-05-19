@@ -5,10 +5,12 @@ const Index = require('./index.entity');
 class StorageFactory {
     constructor(app) {
 
-        this.chain = new Storage(app, 'chain.dat');
-        this.index = new Storage(app, 'index.dat');
-        this.datascript = new Storage(app, 'datascript.dat');
-        this.keystore = new Storage(app, 'keystore.dat', true);//todo: encrypt data
+        let net = app.network == 'main' ? '' : (app.network + "net");
+
+        this.chain = new Storage(app, net + 'chain.dat');
+        this.index = new Storage(app, net + 'index.dat');
+        this.datascript = new Storage(app, net + 'datascript.dat');
+        this.keystore = new Storage(app, net + 'keystore.dat', true);//todo: encrypt data
 
         this.Entity = Entity;
         this.Index = Index;

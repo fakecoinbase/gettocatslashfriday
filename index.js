@@ -12,6 +12,7 @@ DAPP.initConfig = (path) => {
         }
     };
 
+    let firstRun = false;
     let crypto = require('./node/modules/crypto/index')
     //if config is not exist or no have "node" key in selected network - add "node" value
     try {
@@ -27,6 +28,7 @@ DAPP.initConfig = (path) => {
             }
 
             if (!json['test']['node'] || !json['test']['node']['privateKey']) {
+                firstRun = true;
                 let keystore = crypto.createKeyPair();
                 json['test']['node'] = {
                     privateKey: keystore.private,
@@ -37,10 +39,12 @@ DAPP.initConfig = (path) => {
             //if have only privateKey?
             //generate public!
             if (!json['main']['node']['publicKey'] && json['main']['node']['privateKey']) {
+                firstRun = true;//i think its first run too.
                 json['main']['node']['publicKey'] = crypto.getPublicByPrivate(json['main']['node']['privateKey']);
             }
 
             if (!json['test']['node']['publicKey'] && json['test']['node']['privateKey']) {
+                firstRun = true;//i think its first run too.
                 json['test']['node']['publicKey'] = crypto.getPublicByPrivate(json['test']['node']['privateKey']);
             }
 
@@ -62,13 +66,15 @@ DAPP.initConfig = (path) => {
         };
 
         fs.writeFileSync(path, JSON.stringify(def_cnf, null, ' '));
+        firstRun = true;
     }
 
+    return firstRun;
 }
 
 DAPP.create = (configFile, network) => {
-    DAPP.initConfig(configFile);//preinstall config before first run
-    return new DAPP(require(configFile), network);
+    let firstRun = DAPP.initConfig(configFile);//preinstall config before first run
+    return new DAPP(require(configFile), network, firstRun);
 }
 
 module.exports = DAPP;

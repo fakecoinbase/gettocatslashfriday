@@ -18,7 +18,7 @@ class index {
         }
     }
     set(key, value) {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             if (this.inmemory) {
                 this.setCache(key, value);
                 return Promise.resolve(value);

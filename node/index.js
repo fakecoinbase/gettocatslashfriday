@@ -3,7 +3,7 @@ const path = require('path');
 const appError = require('./error').createAppError;
 
 class app extends EventEmitter {
-    constructor(config, network) {
+    constructor(config, network, initConfig) {
         super();
 
         if (!network)
@@ -17,6 +17,7 @@ class app extends EventEmitter {
             this.cwd = config.cwd + "/node/";
 
         config.network = network;
+        this.firstRun = initConfig;//create prompt for password ask, and secure keystore and create hash for ui. 
         this.network = network;
         this.f_noconflict = false;
         this.fisReadySended = false;
@@ -48,7 +49,10 @@ class app extends EventEmitter {
                 this.logModules = this.cnf('logs').modules;
                 this.logLevels = this.cnf('logs').levels;
                 this.emit("beforeinit");
+                //if (!this.firstRun)
                 this.emit("_caninit");
+                //else
+                //    this.emit("encryptDatabases");
             })
 
     }
@@ -99,6 +103,15 @@ class app extends EventEmitter {
                     .catch((e) => {
                         throw e;
                     })
+            });
+
+            this.on("encryptDatabases", () => {
+
+                this.config.createKeystorePassword()
+                    .then(() => {
+                        this.emit('_caninit')
+                    })
+
             })
 
         });

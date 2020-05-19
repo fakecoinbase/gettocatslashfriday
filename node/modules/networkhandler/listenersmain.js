@@ -270,6 +270,8 @@ module.exports = function (app) {
 
             //height down
             startIndex = app.orwell.index.get("block/" + message.hashStart).height;
+            if (!startIndex)
+                startIndex = stopIndex - app.cnf("consensus").syncmax;
             //height upper
             if (message.hashStop)
                 stopIndex = app.orwell.index.get("block/" + message.hashStop).height;
@@ -422,7 +424,6 @@ module.exports = function (app) {
                         return new Promise((resolve, reject) => {
                             try {
                                 app.orwell.addBlockFromNetwork(null, app.orwell.BLOCK.fromJSON(blocklist[i]), 'sync', (block1, res) => {
-                                    console.log(i, blocklist.length, ' block processed', block1.getId(), res.chain, 'chain:', block1.chain)
                                     resolve(block1);
                                 });
                             } catch (e) {
