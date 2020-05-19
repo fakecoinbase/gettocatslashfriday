@@ -82,7 +82,11 @@ module.exports = function (app) {
         } else if (d.top.height > app.orwell.index.getTop().height) {
             isActiveNode = false;
 
-            if (!(app.db.get("activesync") && typeof app.db.get("activesync") == 'string'))
+            let list = app.db.get('activesyncers');
+            if (!list || !(list instanceof Array))
+                list = [];
+
+            if (list.length < app.cnf('consensus').synconetime && list.indexOf(key) == -1)
                 arr.push({
                     sendBack: true,
                     type: 'getdata',
@@ -141,13 +145,17 @@ module.exports = function (app) {
         if (selfMessage)
             return false;
 
+        let nodeId = app.network.protocol.getAddressUniq(connectionInfo);
+        let list = app.db.get('activesyncers');
+        if (!list || !(list instanceof Array))
+            list = [];
 
-        if (app.db.get("activesync") && typeof app.db.get("activesync") == 'string') {
+        if (list.length >= app.cnf('consensus').synconetime || list.indexOf(nodeId) != -1) {
             app.network.protocol.sendOne(connectionInfo, 'pong', {});
             return false;//in sync process now
         }
 
-        let key = app.network.protocol.getAddressUniq(connectionInfo);
+        let key = nodeId;
         let d = app.network.nodes.get("data/" + key);
         d.top = message.latest;
         app.network.nodes.set("data/" + key, d);
@@ -190,8 +198,15 @@ module.exports = function (app) {
         if (selfMessage)
             return false;
 
-        if (app.db.get("activesync") && typeof app.db.get("activesync") == 'string')
+        let nodeId = app.network.protocol.getAddressUniq(connectionInfo);
+        let list = app.db.get('activesyncers');
+        if (!list || !(list instanceof Array))
+            list = [];
+
+        if (list.length >= app.cnf('consensus').synconetime || list.indexOf(nodeId) != -1) {
+            app.network.protocol.sendOne(connectionInfo, 'pong', {});
             return false;//in sync process now
+        }
 
         app.setSyncState('readyToSync');
 
@@ -270,8 +285,6 @@ module.exports = function (app) {
 
             //height down
             startIndex = app.orwell.index.get("block/" + message.hashStart).height;
-            if (!startIndex)
-                startIndex = stopIndex - app.cnf("consensus").syncmax;
             //height upper
             if (message.hashStop)
                 stopIndex = app.orwell.index.get("block/" + message.hashStop).height;
@@ -402,19 +415,28 @@ module.exports = function (app) {
 
         if (message.type == 'start') {
 
-            if (app.db.get("activesync") && typeof app.db.get("activesync") == 'string')
-                return false;
-
+            //if (app.db.get("activesync") && typeof app.db.get("activesync") == 'string')
+            //   return false;
+            let nodeId = app.network.protocol.getAddressUniq(connectionInfo);
             app.network.nodes.setState(connectionInfo, 'syncer');
-            app.db.set("sync/" + message.hash, []);
-            app.db.set("activesync", message.hash);
-            app.db.set("activesyncer", app.network.protocol.getAddressUniq(connectionInfo));
+            app.db.set("sync/" + nodeId + message.hash, []);
+            app.db.set("activesync" + nodeId, message.hash);
+
+            let list = app.db.get("activesyncers");
+            if (!list || !(list instanceof Array))
+                list = [];
+
+            if (list.indexOf(nodeId) == -1)
+                list.push(nodeId);
+
+            app.db.set("activesyncers", list);
         }
 
         if (message.type == 'finish') {
 
+            let nodeId = app.network.protocol.getAddressUniq(connectionInfo);
             app.network.nodes.setState(connectionInfo, 'synced');
-            let blocklist = app.db.get("sync/" + message.hash);
+            let blocklist = app.db.get("sync/" + nodeId + message.hash);
             //add blocks to blockchain
 
             let promise = Promise.resolve(-1);
@@ -423,7 +445,9 @@ module.exports = function (app) {
                     .then((b) => {
                         return new Promise((resolve, reject) => {
                             try {
-                                app.orwell.addBlockFromNetwork(null, app.orwell.BLOCK.fromJSON(blocklist[i]), 'sync', (block1, res) => {
+                                let bl = app.orwell.BLOCK.fromJSON(blocklist[i]);
+                                console.log(bl.getPrevId(), '->', bl.getId());
+                                app.orwell.addBlockFromNetwork(null, bl, 'sync', (block1, res) => {
                                     resolve(block1);
                                 });
                             } catch (e) {
@@ -441,8 +465,16 @@ module.exports = function (app) {
             promise
                 .then(() => {
                     //sort blockpool by number
-                    app.db.remove("sync/" + message.hash);
-                    app.db.remove("activesync");
+                    let list = app.db.get("activesyncers");
+                    if (!list || !(list instanceof Array))
+                        list = [];
+                    let indx = list.indexOf(nodeId);
+                    if (indx != -1)
+                        list.splice(indx, 1);
+                    app.db.set("activesyncers", list);
+
+                    app.db.remove("sync/" + nodeId + message.hash);
+                    app.db.remove("activesync" + nodeId);
 
                     //call next offset, if have offset param
                     if (message.hasNext) {
@@ -468,21 +500,23 @@ module.exports = function (app) {
 
     app.on("handler.block", function (message, connectionInfo, selfMessage) {
 
-        let activesync = app.db.get("activesync");
-        if (activesync && !app.tools.emptyObject(activesync)) {
+        let nodeId = app.network.protocol.getAddressUniq(connectionInfo);
+        let activesync = app.db.get("activesync" + nodeId);
+
+        let syncers = app.db.get("activesyncers");
+        if (!syncers && !(syncers instanceof Array))
+            syncers = [];
+
+        if (syncers.indexOf(nodeId) != -1) {
             if (selfMessage)
                 return false;
 
-            let syncer = app.db.get("activesyncer");
-            if (syncer != app.network.protocol.getAddressUniq(connectionInfo))
-                return false;
-
-            let blocklist = app.db.get("sync/" + activesync);
+            let blocklist = app.db.get("sync/" + nodeId + activesync);
             if (!blocklist || !(blocklist instanceof Array))
                 blocklist = [];
 
             blocklist.push(message);
-            app.db.set("sync/" + activesync, blocklist);
+            app.db.set("sync/" + nodeId + activesync, blocklist);
         } else {
             if (selfMessage)
                 return false;
@@ -491,6 +525,8 @@ module.exports = function (app) {
                 let b = app.orwell.BLOCK.fromJSON(message);
                 let height = app.orwell.getBlockHeight(message.p) + 1;
                 message.height = height;
+                if (isNaN(height))
+                    throw new Error('some error');
                 app.debug('info', 'orwell', height + "/" + b.getId());
                 app.orwell.addBlockFromNetwork(null, b, 'relay', function (block, res) {
                     app.debug("info", "orwell", "added new block by rpc chain ", res.chain, block.getId());

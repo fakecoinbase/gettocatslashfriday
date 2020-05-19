@@ -333,6 +333,7 @@ class app extends EventEmitter {
                     "410001-1010000": 10
                 },
                 "syncmax": 200,
+                "synconetime": 1,
                 "maturity": 100,
                 "minfeeperbyte": 1,
                 "genesisMode": false,
