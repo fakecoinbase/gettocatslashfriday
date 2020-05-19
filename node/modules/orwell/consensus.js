@@ -330,6 +330,82 @@ module.exports = (app, orwell) => {
                 });
 
             }
+            deleteIndex(data, options) {
+                if (!options)
+                    options = {};
+
+                if (!options.chain)
+                    options.chain = 'main';
+
+                let path = '';
+                if (options.chain != 'main')
+                    path = options.chain + '/';
+
+                let txpromises = [];
+                let dspromise = Promise.resolve();
+                let b = data.toJSON('hash');
+
+                for (let i in b.tx) {
+                    let tx = b.tx[i];
+
+                    txpromises.push(orwell.index.remove(path + "tx/" + tx.hash));
+                    if (tx.hash) {
+                        orwell.utxo.removeTx(tx, options);
+
+                        if (i != 0 && tx.cb)
+                            throw new Error('coinbase tx can not be not first in list of block tx');//resync or maybe something like this
+
+                        if (i == 0 && tx.cb) {//so.. havent inputs
+                            let out = tx.out[0];
+                            this.removeIndex({
+                                type: 'input',
+                                hash: tx.hash,
+                                address: out.address,
+                                amount: out.amount
+                            }, options);
+                        } else {
+                            for (let o in tx.out) {
+                                let out = tx.out[o];
+                                this.removeIndex({
+                                    type: 'input',
+                                    index: o,
+                                    hash: tx.hash,
+                                    address: out.address,
+                                    amount: out.amount
+                                }, options);
+                            }
+
+                            for (let inp in tx.in) {
+                                let inpt = tx.in[inp];
+                                let prevout = this.getOut(inpt.hash, inpt.index);
+                                if (prevout !== false)
+                                    this.removeIndex({
+                                        type: 'output',
+                                        hash: tx.hash,
+                                        index: inp,
+                                        address: prevout.address,
+                                        amount: prevout.amount
+                                    }, options);
+                            }
+
+                            if (tx.ds && !tx.coinbase) {
+                                this.removeDSIndex({ hash: tx.hash, out: tx.out[0] }, options);
+                                dspromise = dspromise.then(() => { return app.orwell.dsIndex.removeDataScript(tx, options) });
+                            }
+                        }
+
+
+                    }
+                }
+
+                return Promise.all(txpromises.concat([
+                    dspromise,
+                    orwell.index.remove(path + "index/" + options.height, data.getId()),
+                    orwell.index.remove(path + "prev/" + data.getId()),
+                    orwell.index.remove(path + "time/" + data.getId()),
+                    orwell.index.remove(path + "block/" + data.getId())
+                ]))
+            }
 
             getTx(hash) {
                 let txk = orwell.index.get("tx/" + hash);
@@ -395,6 +471,36 @@ module.exports = (app, orwell) => {
                 return addrind
             }
 
+            removeIndex(data, options) {
+                if (!options.chain)
+                    options.chain = 'main';
+
+                let path = '';
+                if (options.chain != 'main')
+                    path = 'main/';
+
+                let addrind = orwell.index.get(path + "address/" + data.address);
+                if (!addrind || !(addrind instanceof Array))
+                    addrind = [];
+
+                let finded = 0, index = -1;
+                for (let i in addrind) {
+                    let _inx = addrind[i];
+                    if (_inx == data.hash && _inx.index == data.index) {
+                        finded = 1;
+                        index = i;
+                        break;
+                    }
+                }
+
+                if (!finded)
+                    return;
+
+                addrind.splice(index, 1);
+
+                orwell.index.set(path + "address/" + data.address, addrind)
+            }
+
             addDSIndex(context, options) {
                 if (!options.chain)
                     options.chain = 'main';
@@ -422,6 +528,27 @@ module.exports = (app, orwell) => {
 
                 orwell.index.set(path + "ds/address/" + context.out.addrHash, addrind)
                 return addrind
+            }
+
+            removeDSIndex(context, options) {
+                if (!options.chain)
+                    options.chain = 'main';
+
+                let path = '';
+                if (options.chain != 'main')
+                    path = options.chain + '/';
+
+                context.out.addrHash = orwell.ADDRESS.getPublicKeyHashByAddress(context.out.address).toString('hex');
+                let addrind = orwell.index.get(path + "ds/address/" + context.out.addrHash);
+                if (!addrind || !(addrind instanceof Array))
+                    addrind = [];
+
+                let index = addrind.indexOf(context.hash);
+                if (index != -1) {
+                    addrind.splice(index, 1)
+                }
+
+                orwell.index.set(path + "ds/address/" + context.out.addrHash, addrind)
             }
 
             __addToMain(data, blockchain_height) {
@@ -509,17 +636,26 @@ module.exports = (app, orwell) => {
 
             removeData(data, height) {
                 //remove indexes
-                orwell.blockpool.removeBlock(data.getId());
+                this.deleteIndex(data.getId(), { chain: 'main', height: height })
+                    .then(() => {
+                        orwell.blockpool.removeBlock(data.getId());
+                    })
             }
 
             removeSideBlock(data) {
                 //remove indexes
-                orwell.sidepool.removeBlock(data.getId());
+                this.deleteIndex(data.getId(), { chain: 'side', height: height })
+                    .then(() => {
+                        orwell.sidepool.removeBlock(data.getId());
+                    });
             }
 
             removeOrphanBlock(data) {
                 //remove indexes
-                orwell.orphanpool.removeBlock(data.getId());
+                this.deleteIndex(data.getId(), { chain: 'orphan', height: height })
+                    .then(() => {
+                        orwell.orphanpool.removeBlock(data.getId());
+                    })
             }
 
             getDataSlice(numberFrom, numberTo) {

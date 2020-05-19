@@ -1362,5 +1362,19 @@ module.exports = function (app) {
         return -1;
     })
 
+    app.rpc.addMethod("indexblock", (params, cb) => {
+
+        if (!params.length){
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'one or more hashes is required');
+        }
+
+        app.orwell.indexBlock(params)
+            .then(() => {
+                cb(null, { status: true, "top": app.orwell.index.getTop() });
+            })
+
+        return -1;
+    })
+
 
 }

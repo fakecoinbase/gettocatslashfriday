@@ -24,10 +24,28 @@ module.exports = (app) => {
             return promise;
         }
         spentInput(address, hash, index, txHash, options) {
-            let u = this.coll.chain().find({address: address, hash: hash+":"+index}).limit(limit);
+            let u = this.coll.chain().find({ address: address, hash: hash + ":" + index }).limit(limit);
             u.spent = true;
             u.spentHash = txHash;
             u.spentHeight = options.height;
+            u.save();
+            return Promise.resolve()
+        }
+        removeInputs(tx, options) {
+            let promise = Promise.resolve();
+            for (let i in tx.out) {
+                promise = promise.then(() => {
+                    return this.remove(tx.hash + ":" + i);
+                })
+            }
+
+            return promise;
+        }
+        removeSpentInput(address, hash, index, txHash, options) {
+            let u = this.coll.chain().find({ address: address, hash: hash + ":" + index }).limit(limit);
+            u.spent = false;
+            u.spentHash = '';
+            u.spentHeight = '';
             u.save();
             return Promise.resolve()
         }

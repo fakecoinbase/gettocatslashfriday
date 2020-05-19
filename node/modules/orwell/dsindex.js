@@ -98,6 +98,114 @@ module.exports = (app) => {
 
             return promise;
         }
+        removeDataScript(tx, options) {
+            let promise = Promise.resolve();
+            let index = this.get("tx/" + tx.hash);
+            if (!index)
+                return promise;
+
+            let cnt = 0;
+            let publicKey = tx.s[0][1];
+            let address = tx.out[0].address;
+            let database = app.orwell.ADDRESS.getPublicKeyHashByAddress(tx.out[0].address).toString('hex');
+            let dslist = [];
+
+            let ds = dscript.readArray(tx.ds);
+
+            for (let k in ds) {
+                let data = new dscript(ds[k]).toJSON();
+                data.writer = publicKey;
+                if (!dslist[data.dataset])
+                    dslist[data.dataset] = [];
+
+                data.writer = publicKey;
+                data.database = database;
+                data.writerAddress = address;
+                data.tx = tx.hash;
+
+                let indx = dslist[data.dataset].indexOf(data);
+                if (indx != -1)
+                    dslist[data.dataset].splice(indx, 1);
+            }
+
+            let setlist = this.get(database);
+            if (!setlist || !(setlist instanceof Array))
+                setlist = [];
+
+            for (let dtset in dslist) {
+                promise = promise.then(() => {
+
+                    let oldlist = this.get(database + "/" + dtset);
+                    if (!oldlist || !(oldlist instanceof Array))
+                        oldlist = [];
+
+                    let datalist = this.get("data/" + database + "/" + dtset);
+                    if (!datalist || !(datalist instanceof Array))
+                        datalist = [];
+
+                    let settingslist = this.get("settings/" + database + "/" + dtset);
+                    if (!settingslist || !(settingslist instanceof Array))
+                        settingslist = [];
+
+                    let createlist = this.get("create/" + database);
+                    if (!createlist || !(createlist instanceof Array))
+                        createlist = [];
+
+                    let m = Promise.resolve();
+                    let indx2 = setlist.indexOf(dtset);
+                    if (indx2 != -1)
+                        setlist.splice(indx2, 1);
+
+                    for (let j in dslist[dtset]) {
+                        cnt++;
+                        let data = dslist[dtset][j];
+                        if (!data.content.owner_key && data.operator == 'settings')
+                            data.content.owner_key = publicKey;
+
+                        let indx3 = oldlist.indexOf(data);
+                        if (indx3 != -1)
+                            oldlist.splice(indx3, 1);
+
+                        if (data.operator == 'write') {
+                            m = m.then(() => { return this.removeSpecialData(database, data) });
+                            let indx4 = datalist.indexOf(data.content);
+                            if (index4 != -1)
+                                datalist.splice(indx4, 1);
+                        }
+
+                        if (data.operator == 'settings' || data.operator == 'create') {
+                            let indx5 = settingslist.indexOf(data.content);
+                            if (indx5 != -1)
+                                settingslist.splice(indx5, 1);
+                        }
+
+                        if (data.operator == 'create') {
+                            let indx6 = createlist.indexOf(data);
+                            if (indx6 != -1)
+                                createlist.splice(indx6, 1);
+                        }
+                    }
+
+                    if (!cnt)
+                        cnt = -1;
+
+                    return Promise.all([
+                        m,
+                        this.set(database + "/" + dtset, oldlist),
+                        this.set("data/" + database + "/" + dtset, datalist),
+                        this.set("settings/" + database + "/" + dtset, settingslist),
+                        this.set("create/" + database, createlist),
+                        this.set(database, Array.from(new Set(setlist))),
+                        this.remove("tx/" + tx.hash)
+                    ])
+                }).then(() => {
+                    app.debug("info", "dsindex", "remove dsindex for tx: " + tx.hash + " count: ", cnt);
+                    return Promise.resolve();
+                })
+            }
+
+            return promise;
+        }
         getDomainsList() {
             let result = this.find({ 'key': { '$contains': "domain/key/" } }, ["value", true]);
             let list = [];
@@ -214,7 +322,7 @@ module.exports = (app) => {
         getTokenHistoryAll(ticker) {
             return this.get("all/token/" + ticker + "/history") || [];
         }
-        getAddressHistoryAll(address){
+        getAddressHistoryAll(address) {
             return this.get("all/" + address + "/tokens/history");
         }
         addSpecialData(database, data) {
@@ -364,6 +472,189 @@ module.exports = (app) => {
                         let d = data.content;
                         d.ticker = ticker;
                         history.push(d);
+                        return this.set("all/" + data.content.to + "/tokens/history", history);
+                    });
+
+                }
+
+                return prms;
+            })
+
+            return promise;
+        }
+        removeSpecialData(database, data) {
+            let promise = Promise.resolve();
+            let dbaddress = app.orwell.ADDRESS.generateAddressFromAddrHash(database);
+            if (dbaddress == app.orwell.getSystemAddress()) {
+
+                if (data.dataset == 'domains') {
+                    promise = promise.then(() => { return this.remove("domain/" + data.content.domain); });
+                    promise = promise.then(() => { return this.remove("domain/key/" + data.content.key); });
+                    promise = promise.then(() => { return this.remove("domain/address/" + app.orwell.ADDRESS.generateAddressFromPublicKey(data.content.key)); });
+                }
+
+                if (data.dataset == 'masternodes') {
+                    promise = promise.then(() => { return this.remove("masternode/" + data.content.key); });
+                    promise = promise.then(() => {
+                        let mnlist = this.get("masternodes");
+                        if (!mnlist)
+                            mnlist = [];
+
+                        let indx = mnlist.indexOf(data.content.key);
+                        if (indx != -1)
+                            mnlist.splice(indx, 1);
+
+                        if (data.content.remove) {
+                            if (this.app.orwell.getAddressBalance(this.app.orwell.createAddressHashFromPublicKey(data.content.key)) < app.cnf('consensus').masternodeAmount) {
+                                mnlist.push(data.content.key);
+                            }
+                        }
+
+                        mnlist = mnlist.filter((v, i, a) => a.indexOf(v) === i);
+                        return this.set("masternodes", mnlist);
+                    });
+                }
+
+                if (data.dataset == 'tokens') {
+                    promise = promise.then(() => { return this.remove("token/" + data.content.ticker); });
+                    promise = promise.then(() => { return this.remove("token/address/" + data.content.address); });
+                    promise = promise.then(() => { return this.remove("token/data/" + data.content.ticker); });
+                    promise = promise.then(() => { return this.remove("token/systemdata/" + data.content.ticker); });
+
+                    if (data.content.isStock) {
+                        promise = promise.then(() => { return this.remove("stock/" + data.content.ticker); });
+                        promise = promise.then(() => { return this.remove("stock/address/" + data.content.address); });
+                        promise = promise.then(() => { return this.remove("stock/data/" + data.content.ticker); });
+                    }
+                }
+
+            }
+
+            //address token db
+            promise = promise.then(() => {
+                let prms = Promise.resolve();
+                let ticker = this.get("token/address/" + dbaddress);
+
+                if (ticker && data.dataset == 'token') {
+                    let opts = this.get("token/data/" + ticker);
+                    //balance by address ?
+                    //balance history by address
+
+                    prms = prms.then(() => {
+                        let history = this.get(data.content.from + "/token/" + ticker + "/history");
+                        if (!history)
+                            history = [];
+
+                        let indx = history.indexOf(data.content);
+                        if (indx != -1)
+                            history.splice(indx, 1);
+
+                        return this.set(data.content.from + "/token/" + ticker + "/history", history);
+                    });
+
+                    if (data.content.to && data.content.from != data.content.to)
+                        prms = prms.then(() => {
+                            let history = this.get("all/" + data.content.from + "/tokens/history");
+                            if (!history)
+                                history = [];
+
+                            let d = data.content;
+                            d.ticker = ticker;
+
+                            let indx = history.indexOf(d);
+                            if (indx != -1)
+                                history.splice(indx, 1);
+
+                            return this.set("all/" + data.content.from + "/tokens/history", history);
+                        });
+
+                    prms = prms.then(() => {
+                        let history = this.get("all/token/" + ticker + "/history");
+                        if (!history)
+                            history = [];
+
+                        let indx = history.indexOf(data.content);
+                        if (indx != -1)
+                            history.splice(indx, 1);
+
+                        return this.set("all/token/" + ticker + "/history", history);
+                    });
+
+                    prms = prms.then(() => {
+                        let balance = this.get(data.content.to + "/token/" + ticker);
+                        if (!balance)
+                            balance = 0;
+                        balance -= parseFloat(data.content.amount);
+                        return this.set(data.content.to + "/token/" + ticker, balance);
+                    });
+                    prms = prms.then(() => {
+                        let balance = this.get(data.content.to + "/token/" + ticker);
+                        if (!balance)
+                            balance = 0;
+                        balance -= parseFloat(data.content.amount);
+                        return this.set(data.content.to + "/token/" + ticker, balance);
+                    });
+
+                    prms = prms.then(() => {
+
+                        let tokenHolders = this.get("token/holders/" + ticker);
+                        if (!tokenHolders)
+                            tokenHolders = [dbaddress];
+
+                        let indx = tokenHolders.indexOf(data.content.to);
+                        if (indx != -1)
+                            tokenHolders.splice(indx, 1);
+
+                        tokenHolders = tokenHolders.filter((v, i, a) => a.indexOf(v) === i);
+
+                        //TODO: index holder send last tokens
+                        if (data.content.to && data.content.from != data.content.to) {
+                            let fromBalance = this.getTokenBalance(ticker, data.content.from) || 0;
+                            fromBalance += parseFloat(data.content.amount);
+
+                            if (tokenHolders.indexOf(data.content.from) == -1) {
+                                tokenHolders.push(data.content.from);
+                            }
+                        }
+
+                        return this.set("token/holders/" + ticker, tokenHolders);
+                    });
+
+
+                    if (data.content.from != data.content.to) {//initial pay hack
+                        prms = prms.then(() => {
+                            let history = this.get(data.content.to + "/token/" + ticker + "/history");
+                            if (!history)
+                                history = [];
+
+                            let indx = history.indexOf(data.content);
+                            if (indx != -1)
+                                history.splice(indx, 1);
+
+                            return this.set(data.content.to + "/token/" + ticker + "/history", history);
+                        });
+
+                        prms = prms.then(() => {
+                            let balance = this.get(data.content.from + "/token/" + ticker);
+                            if (!balance)
+                                balance = 0;
+                            balance += parseFloat(data.content.amount);
+                            return this.set(data.content.from + "/token/" + ticker, balance);
+                        });
+                    }
+
+                    prms = prms.then(() => {
+                        let history = this.get("all/" + data.content.to + "/tokens/history");
+                        if (!history)
+                            history = [];
+
+                        let d = data.content;
+                        d.ticker = ticker;
+
+                        let indx = history.indexOf(d);
+                        if (indx != -1)
+                            history.splice(indx, 1);
+
                         return this.set("all/" + data.content.to + "/tokens/history", history);
                     });
 

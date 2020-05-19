@@ -176,7 +176,26 @@ class orwell {
             return Promise.resolve();
         })
     }
+    indexBlock(hashes) {
+        let promise = Promise.resolve();
+        for (let i in hashes) {
+            let block = this.getBlock(hashes[i]);
+            let h = this.index.get('block/' + block.getPrevId()).height;
+            if (h && h > 0) {
+                promise = promise.then(() => {
+                    return this.consensus.dataManager.indexData(data, {
+                        chain: 'main',
+                        height: h + 1,
+                    })
+                        .then((b) => {
+                            return this.updateLatestBlock(b);
+                        })
+                })
+            }
+        }
 
+        return promise;
+    }
     indexBlockFromLocalStorage(data, h) {
         if (h != undefined)
             data.height = h;

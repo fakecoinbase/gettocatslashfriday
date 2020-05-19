@@ -45,6 +45,31 @@ module.exports = (app) => {
             }
 
         }
+        removeTx(tx, options) {
+            app.orwell.utxh.removeInputs(tx, options);
+            let outs = tx.out;
+            for (let o in outs) {
+                var out = outs[o];
+                this.removeIndex(tx.hash, o, out.address, out.amount, options);
+            }
+
+            for (let inp in tx.in) {
+                let inpt = tx.in[inp];
+
+                if (inpt.hash == '0000000000000000000000000000000000000000000000000000000000000000')//coinbase
+                    continue;
+
+                let prevout;
+                try {
+                    prevout = app.orwell.getOut(inpt.hash, inpt.index);
+                    app.orwell.utxh.removeSpentInput(prevout.address, inpt.hash, inpt.index, tx.hash, options);
+                    this.removeSpentIndex(tx.hash, prevout.address, inpt.hash, inpt.index);
+                } catch (e) {
+                    console.log('error', e)
+                    //search in mempool
+                }
+            }
+        }
         addOutIndex(tx, index, addr, amount, options) {
             app.debug("info", "utxo", "add UTXO index " + addr, tx + ":" + index, amount)
 
@@ -83,6 +108,31 @@ module.exports = (app) => {
 
             return addrind
         }
+        removeIndex(tx, index, addr, amount, options) {
+            let addrind = this.get("address/" + addr);
+            if (!addrind || !(addrind instanceof Array))
+                addrind = [];
+
+            let finded = 0, index = -1;
+            for (let i in addrind) {
+                if (addrind[i].tx == tx && addrind[i].index == index) {
+                    finded = 1, index = i;
+                    break;
+                }
+            }
+
+            if (finded) {
+                addrind.splice(index, 1)
+
+                this.set("address/" + addr, addrind)
+                let list = this.getList();
+                let indx = list.indexOf(tx + ":" + index);
+                if (indx != -1)
+                    list.splice(indx, 1);
+                this.setList(list);
+            }
+
+        }
         removeOutIndex(txhash, addr, tx, index) {
             app.debug("info", "utxo", "update spent UTXO index " + txhash + " " + addr, tx + ":" + index)
 
@@ -109,6 +159,29 @@ module.exports = (app) => {
             this.set("address/" + addr, addrind)
             return addrind
 
+        }
+        removeSpentIndex(txhash, addr, tx, index) {
+            let addrind = this.get("address/" + addr);
+            if (!addrind || !(addrind instanceof Array))
+                addrind = [];
+
+            for (let i in addrind) {
+                if (addrind[i].tx == tx && addrind[i].index == index) {
+                    let o = addrind[i];
+                    o.address = addr;
+                    o.spent = false;
+                    o.spentHash = '';
+                    
+                    addrind[i] = o;
+                    let list = this.getList();
+                    list.push(tx + ":" + index);
+                    this.setList(list);
+                    break;
+                }
+            }
+
+            this.set("address/" + addr, addrind)
+            return addrind
         }
         have(addr, hash, index, txid) {
             let addrind = this.get("address/" + addr);
