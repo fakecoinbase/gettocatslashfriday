@@ -37,8 +37,11 @@ class validatorManager extends EventEmitter {
                     }
                     let newblock = this.createBlock(this.app.orwell.TX.writeCoinbaseBytes('default client', this.app.getAgentName().name + ":" + this.app.getAgentName().version));
                     this.app.debug("info", "validatormanager", "current node is active validator, created block ", newblock.getHash());
-                    this.app.debug("info", "validatormanager", "send block to network");
-                    newblock.send();
+                    this.app.orwell.addBlockFromNetwork(null, newblock)
+                        .then((data) => {
+                            this.app.debug("info", "validatormanager", "send block to network");
+                            data.send();
+                        });
                 })
 
         }

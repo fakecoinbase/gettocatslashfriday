@@ -502,7 +502,6 @@ module.exports = function (app, chain) {
                 }
 
                 if (first.operator != 'create') {
-                    console.log(first, ds);
                     return validator.addError("datascript dataset " + datasetname + " already created correctly: false", 'ds_incorrect_creation');
                 } else
                     res.push(1);
