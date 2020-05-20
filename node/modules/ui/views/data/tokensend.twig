@@ -2,36 +2,52 @@
 
 {% block body %}
 
-    <script type='text/javascript'>
-    function selectToken(el, defaultAcc){
-        $.post( "/data/token/balance", { ticker: el.value })
-            .done(function( data ) {
-                let d = data;//JSON.parse(data);
-                console.log(d.list);
-                let html = ("<option value=''>---</option>");
-                for (let i in d.list){
-                    let selected = '';
-                    if (defaultAcc && defaultAcc == d.list[i].name)
-                        selected = 'selected';
-                    if (!d.list[i].balance && !selected)
-                        continue;    
-                    html += ("<option "+selected+" value='"+d.list[i].name+"'> "+(d.list[i].name?d.list[i].name:d.list[i].address)+" [ "+(d.list[i].balance?d.list[i].balance:0)+" "+d.ticker+" ]</option>");
-                }
+	<script type='text/javascript'>
+		function selectToken(el, defaultAcc) {
 
-                $("#account").html(html);
+$.post("/data/token/balance", {ticker: el.value}).done(function (data) {
 
-            });
-    }
+let d = data; // JSON.parse(data);
+console.log(d.list);
+let html = ("<option value=''>---</option>");
+for (let i in d.list) {
 
-    {% if data.token %}
-        $(()=>{
-            selectToken({value: '{{data.token}}'}, '{{data.account}}');
-        })
-    {% endif %}
-    </script>
+let selected = '';
+if (defaultAcc && defaultAcc == d.list[i].name) 
+selected = 'selected';
+
+if (! d.list[i].balance && ! selected) 
+continue;
+
+html += ("<option " + selected + " value='" + d.list[i].name + "'> " + (
+d.list[i].name ? d.list[i].name : d.list[i].address
+) + " [ " + (
+d.list[i].balance ? d.list[i].balance : 0
+) + " " + d.ticker + " ]</option>");
+
+}
+
+$("#account").html(html);
+
+
+
+});
+
+}
+
+{% if data.token %}
+$(() => {
+
+selectToken({
+
+value: '{{ data.token }}'
+
+}, '{{ data.account }}');
+
+}){% endif %}
+	</script>
 
 	<form action='' method='POST'>
-
 		{% if error %}
 			<div class='alert alert-warning'>
 				{{error}}
@@ -43,8 +59,9 @@
 			<div class="col-sm-10">
 				<select onchange='return selectToken(this);' name='token' class="form-control" id="token">
 					<option value=''>---</option>
-					{% for token in tokens %}
-						<option {% if data.token == token %} selected {% endif %} value='{{token}}'>{{token}}</option>
+					{% for token in tokens.list %}
+						<option {% if data.token == token.ticker %} selected {% endif %} value='{{token.ticker}}'>{{token.ticker}}
+							{{token.title}}</option>
 					{% endfor %}
 				</select>
 			</div>

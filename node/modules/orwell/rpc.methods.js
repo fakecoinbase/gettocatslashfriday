@@ -514,6 +514,7 @@ module.exports = function (app) {
         out += nl()
         out += nl() + ("> Tokens:")
         out += nl() + (cliname + " createtoken <address from> <tokenaddress> <tokenticker> <opts> - opts is json: {\"emission\":\"21000\", \"isStock\":\"false\", \"share\": \"30\", \"title\": \"Token name\"}")
+        out += nl() + (cliname + " inittoken <address from> <tokenaddress> <amount> - add emission <amount>")
         out += nl() + (cliname + " createstock <address from> <tokenaddress> <tokenticker> <opts> - opts is json: {\"emission\":\"21000\", \"isStock\":\"false\", \"share\": \"30\", \"title\": \"Token name\"}")
         out += nl() + (cliname + " sendtoken <ticker> <address from> <address to> <amount>")
         out += nl() + (cliname + " gettokenbalance <address from> <ticker>")

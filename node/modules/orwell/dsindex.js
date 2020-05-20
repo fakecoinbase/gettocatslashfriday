@@ -415,13 +415,6 @@ module.exports = (app) => {
                         balance += parseFloat(data.content.amount);
                         return this.set(data.content.to + "/token/" + ticker, balance);
                     });
-                    prms = prms.then(() => {
-                        let balance = this.get(data.content.to + "/token/" + ticker);
-                        if (!balance)
-                            balance = 0;
-                        balance += parseFloat(data.content.amount);
-                        return this.set(data.content.to + "/token/" + ticker, balance);
-                    });
 
                     prms = prms.then(() => {
 

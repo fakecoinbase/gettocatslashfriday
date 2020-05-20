@@ -228,7 +228,7 @@ module.exports = (app) => {
             list[i].balancehr = app.wallet.getBalance(list[i].name) / app.cnf("consensus").satoshi;
         }
 
-        res.render('data/tokensend', { title: 'Send token or stock', addressess: list, tokens, data: {token: selectedToken} });
+        res.render('data/tokensend', { title: 'Send token or stock', addressess: list, tokens, data: { token: selectedToken } });
     });
 
     router.post('/token/balance', (req, res, next) => {
@@ -283,15 +283,16 @@ module.exports = (app) => {
         }
 
         app.orwell.sendToken(tokenTicker, obj, to, amount)
-           .then((hash) => {
+            .then((hash) => {
                 console.log('hashes', hash);
                 res.redirect('/explorer/tx/' + hash);
             })
             .catch(e => {
+                console.log(e);
                 if (typeof e == 'string')
                     res.redirect('/explorer/tx/' + e);
                 else
-                    res.render('data/tokensend', { title: 'Send token', data, addressess: list, tokens, error: e.message });
+                    res.render('data/tokensend', { title: 'Send token', data, addressess: list, tokens, error: e.message || e.error });
             })
 
     });

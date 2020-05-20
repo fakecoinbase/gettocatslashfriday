@@ -796,10 +796,11 @@ module.exports = function (app, chain) {
                                 //now we in db system/domain and ds[k].content is try to write in this db
                                 //we need, that format of entry will be valid {oid: 'somehex', domain: 'something regexp', address: 'validaddress'}
                                 //and if address with this entry already have - check that previous writer change it.
-                                if (!content.domain || !content.address) {
+                                if (!content.address)
+                                    content.address = chain.ADDRESS.generateAddressFromPublicKey(content.key);
 
+                                if (!content.domain || !content.key) {
                                     return validator.addError("datascript[" + k + "] valid domain entry format: false", 'domain/domainformatinvalid');
-                                    continue;
                                 }
 
                                 if (!chain.ADDRESS.isValidAddress(content.address)) {
