@@ -1256,8 +1256,6 @@ module.exports = function (app, chain) {
             if (!height && height != 0)
                 return true;//add to side chain
 
-            console.log(amount.toString(10), fullfee.toString(10), val.toString(10));
-
             if (!(amount.add(fullfee).eq(val))) {
                 return validator.addError("Coinbase amount is lesser or bigger then minimum blockValue for height: " + (height), 'block_coinbase_amount_invalid');
             }
