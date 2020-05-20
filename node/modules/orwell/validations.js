@@ -1159,13 +1159,7 @@ module.exports = function (app, chain) {
                 return validator.addError("Block time invalid or system time is wrong", 'block_time_invalid');
             }
 
-            let prevblock;
-            try {
-                prevblock = app.orwell.getBlock(block.getPrevId());
-            } catch (e) {
-                console.log('blocktimestamp', e);
-                return true;
-            }
+            let prevblock = app.orwell.getBlock(block.getPrevId());
 
             if (block.getTime() < prevblock.getTime()) {
                 return validator.addError("Block time invalid, prevtime > block.time", 'block_time_prevblock_invalid');
@@ -1294,19 +1288,13 @@ module.exports = function (app, chain) {
             if (block.getId() == chain.GENESIS.hash && block.getPrevId() == '0000000000000000000000000000000000000000000000000000000000000000')
                 return true;
 
-            try {
-                prev = chain.getBlock(block.getPrevId());
-            } catch (e) {
-                console.log('block_prev_mainchain', e);
-                return true;
-            }
-
+            prev = chain.getBlock(block.getPrevId());
             //consensusjs must handle this //after
-            /*if (prev && prev.getId())
+            if (prev && prev.getId())
                 return true;
             else
                 return validator.addError("Prev block is not exist in any pool", 'block_prev_missing');
-            */
+
             return true;
         });
         //12. Check that nBits value matches the difficulty rules
@@ -1318,14 +1306,9 @@ module.exports = function (app, chain) {
             if (app.cnf('consensus').genesisMode)
                 return true;
 
-            try {
-                let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
-                if (block.getTime() <= chain.getTimeForHeight(height - 1)) {
-                    return validator.addError("Block time invalid", 'block_time_invalid');
-                }
-            } catch (e) {
-                console.log('mediantimevalid', e);
-                return true;
+            let height = chain.consensus.dataManager.getDataHeight(block.getPrevId()) + 1;
+            if (block.getTime() <= chain.getTimeForHeight(height - 1)) {
+                return validator.addError("Block time invalid", 'block_time_invalid');
             }
 
             return true;

@@ -690,10 +690,10 @@ module.exports = function (app) {
     });
 
     app.on("chain.block.seek", (data) => {
-        /*app.network.protocol.sendAll('getdata', {
+        app.network.protocol.sendAll('getdata', {
             type: 'blockdata',
             hash: data.hash
-        });*/
+        });
     });
 
 }

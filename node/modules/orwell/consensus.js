@@ -224,9 +224,11 @@ module.exports = (app, orwell) => {
                     return -1;
 
                 let blockNumber = orwell.index.get('block/' + dataId).height;
-                if (!blockNumber && blockNumber != 0) {
-                    blockNumber = orwell.index.get('side/block/' + dataId).height;
+
+                if (!blockNumber) {
+                    throw new Error('invalid data height ', dataId);
                 }
+
                 return blockNumber;
             }
 
