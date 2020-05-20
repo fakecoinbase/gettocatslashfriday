@@ -137,6 +137,14 @@ module.exports = (friday) => {
                 this.prepareDataScript();
             })
 
+            this.valid_field = -1;
+        }
+        isValid(context) {
+            //caching, speedup
+            if (this.valid_field == -1)
+                this.valid_field = super.isValid(context);
+
+            return this.valid_field;
         }
         send() {
             return new Promise((resolve, reject) => {
@@ -264,6 +272,14 @@ module.exports = (friday) => {
         constructor() {
             super();
             this._serialized_version = 1;
+            this.valid_field = -1;
+        }
+        isValid(context) {
+            //caching, speedup
+            if (this.valid_field == -1)
+                this.valid_field = super.isValid(context);
+
+            return this.valid_field;
         }
         send() {
             friday.network.protocol.sendAll('block', this.toJSON());

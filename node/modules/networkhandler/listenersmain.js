@@ -446,7 +446,6 @@ module.exports = function (app) {
                         return new Promise((resolve, reject) => {
                             try {
                                 let bl = app.orwell.BLOCK.fromJSON(blocklist[i]);
-                                console.log(bl.getPrevId(), '->', bl.getId());
                                 app.orwell.addBlockFromNetwork(null, bl, 'sync', (block1, res) => {
                                     resolve(block1);
                                 });
@@ -504,7 +503,7 @@ module.exports = function (app) {
         let activesync = app.db.get("activesync" + nodeId);
 
         let syncers = app.db.get("activesyncers");
-        if (!syncers && !(syncers instanceof Array))
+        if (!syncers || !(syncers instanceof Array))
             syncers = [];
 
         if (syncers.indexOf(nodeId) != -1) {
