@@ -5,13 +5,18 @@ module.exports = (app) => {
             this.init();
         }
         getPriorityList() {
+            let randId = app.db.get('active-transaction');
+            let hashes = [];
+            if (randId && typeof randId == 'string')
+                hashes = app.db.get('active-transaction-list-hashes' + randId);
             let result = this.find({ 'key': { '$contains': 'fee/' } }, ["value", true]);
 
             let arr = [];
             for (let i in result) {
                 let tx = this.get(result[i].key.replace("fee/", ""));
-                if (tx)
-                    arr.push(tx);
+                if (hashes.indexOf(tx.hash) == -1)
+                    if (tx)
+                        arr.push(tx);
             }
 
             return arr;
@@ -180,9 +185,11 @@ module.exports = (app) => {
                     return this.set("address/" + addr, addrind)
                 });
         }
-        removeTx(txHash) {
+        removeTx(txHash, removeForce) {
             //remove tx from pool
             //remove address index
+
+            //removeForce//if removeForce == true - remove from mempool not added to block - checkand unlock fix
 
             let promise = Promise.resolve();
 
@@ -198,7 +205,9 @@ module.exports = (app) => {
                 addreses = [];
 
             for (let i in addreses) {
-                promise = promise.then(() => { this.remove("address/" + addreses[i]); return Promise.resolve(); });
+                promise = promise.then(() => {
+                    this.remove("address/" + addreses[i]); return Promise.resolve();
+                })
             }
 
             ///outs
@@ -221,7 +230,15 @@ module.exports = (app) => {
                 this.remove("fee/" + txHash),
                 this.remove("time/" + txHash),
                 this.remove(txHash)
-            ]);
+            ])
+                .then(() => {
+                    if (removeForce)
+                        for (let i in addreses) {
+                            this.app.orwell.utxo.checkAndUnlock(addreses[i]);
+                        }
+
+                    return Promise.resolve();
+                });
         }
         have(txHash) {
             let list = this.getList();

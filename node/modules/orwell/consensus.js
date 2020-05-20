@@ -23,16 +23,21 @@ module.exports = (app, orwell) => {
     });
 
     cns.on("app.data.new", (data) => {
-        if (app.db.get("activesync"))
-            return false;
 
         if (app.getSyncState() != 'active')
             return false;
 
         if (data.chain != 'main')
             return false;
-
     });
+
+    cns.on("app.block", () => {//message from another peer with new block (not in sync state)
+
+        if (app.getSyncState() != 'active')
+            return false;
+
+        app.validatormanager.unlock();
+    })
 
     //cns.on("app.data{someDataId}");//emit this event when dataId added in main chain
     //cns.on("app.data.tx{someTxId}");//emit this event when data with txId added in main chain 

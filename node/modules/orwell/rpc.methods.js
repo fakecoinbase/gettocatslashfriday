@@ -943,6 +943,42 @@ module.exports = function (app) {
 
     });
 
+    app.rpc.addMethod("inittoken", (params, cb) => {
+
+        let addressfrom = params[0], tokenaddress = params[1], amount = params[2];
+        if (!tokenaddress)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'tokenaddress is required');
+
+        if (!app.orwell.dsIndex.get("token/address/" + tokenaddress)) {
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'token on this address is not exist');
+        }
+
+        let acc = app.orwell.resolveWalletAccount(addressfrom);
+        if (!acc)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'address from is not valid account or address. Must exists in your wallet.');
+
+        let addrto = app.orwell.resolveWalletAccount(tokenaddress);
+        if (!app.orwell.ADDRESS.isValidAddress(addrto.address))
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'Tokenaddress is not valid account or address. Must exists in your wallet.');
+
+        tokenaddress = addrto;
+
+        if (!amount || amount < 1)
+            return app.rpc.error(app.rpc.INVALID_PARAMS, 'amount > 1 is required');
+
+
+        app.orwell.initToken(acc, tokenaddress,amount)
+            .then((hash) => {
+                cb(hash);
+            })
+            .catch(e => {
+                cb(null, e);
+            })
+
+        return -1;
+
+    });
+
     app.rpc.addMethod("createstock", (params, cb) => {
 
         let addressfrom = params[0], tokenaddress = params[1], tokenticker = params[2], opts = params[3];
@@ -1364,7 +1400,7 @@ module.exports = function (app) {
 
     app.rpc.addMethod("indexblock", (params, cb) => {
 
-        if (!params.length){
+        if (!params.length) {
             return app.rpc.error(app.rpc.INVALID_PARAMS, 'one or more hashes is required');
         }
 

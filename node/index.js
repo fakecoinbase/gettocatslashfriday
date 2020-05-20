@@ -26,7 +26,7 @@ class app extends EventEmitter {
         this.miningstate = '';
         this.syncstate = '';
         this.skiplist = [];
-        this.logModules = ['config', 'crypto', 'tools', 'db', 'storage', 'rpc', 'index', 'app', 'orwell', 'validatormanager', 'wallet', 'networkhandler', 'dapps', 'ui', 'network', 'dApps', 'handler', 'error', 'utxo', 'validatormanager/timer'];
+        this.logModules = ['config', 'crypto', 'tools', 'db', 'storage', 'rpc', 'index', 'app', 'orwell', 'validatormanager', 'wallet', 'networkhandler', 'dapps', 'ui', 'network', 'dApps', 'handler', 'error', 'utxo', 'validatormanager/timer', 'orwell/dbTransaction'];
         this.logLevels = ['info', 'debug', 'error', 'warn'];
 
         process.on('unhandledRejection', (reason, p) => {
@@ -396,7 +396,7 @@ class app extends EventEmitter {
                 "http.timeout": 60000,
             },
             "logs": {
-                "modules": ['config', 'crypto', 'tools', 'db', 'storage', 'rpc', 'index', 'app', 'orwell', 'validatormanager', 'wallet', 'networkhandler', 'dapps', 'ui', 'network', 'dApps', 'handler', 'error', 'utxo', 'validatormanager/timer'],
+                "modules": ['config', 'crypto', 'tools', 'db', 'storage', 'rpc', 'index', 'app', 'orwell', 'validatormanager', 'wallet', 'networkhandler', 'dapps', 'ui', 'network', 'dApps', 'handler', 'error', 'utxo', 'validatormanager/timer', 'orwell/dbTransaction'],
                 "levels": ['info', 'debug', 'error', 'warn'],
             }
         }

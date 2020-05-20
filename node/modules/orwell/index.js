@@ -877,6 +877,77 @@ class orwell {
     writeMultiDb(accFrom, addrAmountObj, dbAddress, dataset, contentArr) {
         return this.writeDb(accFrom, addrAmountObj, dataset, contentArr, dbAddress)
     }
+    startTransaction(randId) {
+        if (this.app.db.get('active-transaction') && typeof this.app.db.get('active-transaction') == 'string') {
+            throw new Error('Can not start transaction ' + randId + ', transaction ' + this.app.db.get('active-transaction') + ' in active');
+        }
+
+        this.app.debug('debug', 'orwell/dbTransaction', 'create transaction ', randId);
+        //its mean - we dont send tx until transaction is end
+        this.app.db.set('active-transaction', randId);
+        this.app.db.set('active-transaction-list' + randId, []);
+        this.app.db.set('active-transaction-list-hashes' + randId, []);
+    }
+    inTransaction() {
+        return this.app.db.get('active-transaction') && typeof this.app.db.get('active-transaction') == 'string';
+    }
+    txInTransaction(hash) {
+        let randId = this.app.db.get('active-transaction');
+        if (!randId || typeof randId != 'string')
+            return false;
+
+        let hashes = this.app.db.set('active-transaction-list-hashes' + randId);
+        return hashes.indexOf(hash) != -1;
+    }
+    addToTransaction(tx) {
+        let randId = this.app.db.get('active-transaction');
+
+        this.app.debug('debug', 'orwell/dbTransaction', 'add tx ' + tx.getId() + ' to transaction ', randId);
+        let list = this.app.db.get('active-transaction-list' + randId);
+        if (!list || !(list instanceof Array)) {
+            list = [];
+        }
+
+        let hashes = this.app.db.get('active-transaction-list-hashes' + randId);
+        if (!hashes || !(list instanceof Array)) {
+            hashes = [];
+        }
+
+        let t = tx.toJSON('hash');
+        list.push(t);
+        hashes.push(t.hash);
+        this.app.db.set('active-transaction-list' + randId, list)
+        this.app.db.set('active-transaction-list-hashes' + randId, hashes)
+        return this.addToMemPool(t);//but not send
+    }
+    commitTransaction() {
+        let randId = this.app.db.get('active-transaction');
+        let list = this.app.db.get('active-transaction-list' + randId);
+
+        this.app.debug('debug', 'orwell/dbTransaction', 'commit transaction ', randId, 'tx count: ', list.length);
+        //send transactions from list and remove active-tx
+        for (let i in list) {
+            this.TX.fromJSON(list[i]).send();
+        }
+
+        this.app.db.remove('active-transaction-list' + randId);
+        this.app.db.remove('active-transaction-list-hashes' + randId)
+        this.app.db.remove('active-transaction')
+    }
+    rollbackTransaction() {
+        let randId = this.app.db.get('active-transaction');
+        let list = this.app.db.get('active-transaction-list' + randId);
+
+        this.app.debug('debug', 'orwell/dbTransaction', 'rollback transaction ', randId, 'tx count: ', list.length);
+        //remove transactions from mempool
+        for (let i in list) {
+            this.mempool.removeTx(list[i].hash, true)
+        }
+
+        this.app.db.remove('active-transaction-list' + randId);
+        this.app.db.remove('active-transaction-list-hashes' + randId)
+        this.app.db.remove('active-transaction')
+    }
     writeDb(accFrom, addressTo, dataset, content, dbAddress) {//addressTo can be object addr=>amount, in this case we use dbAddress
         let dbname = null;
         if (typeof addressTo == 'object' && content instanceof Array && content.length) { //multi address addr=>amount
@@ -900,9 +971,6 @@ class orwell {
                         }
 
                         return Promise.all(arr)
-                            .then((res) => {
-                                return Promise.resolve(res);
-                            })
                     })
                         .then((hex) => {
                             //todo: rollback changes in db on send-error
@@ -937,7 +1005,7 @@ class orwell {
                         })
                         .catch(function (e) {
                             console.log(e);
-                            reject("catched: " + e.message);
+                            reject(e);
                         })
                 })
         });
@@ -1000,6 +1068,9 @@ class orwell {
     createToken(acc, tokenAccount, ticker, content) {
         let hashes = [];
 
+        let randId = crypto.randomBytes(8).toString('hex');
+        this.startTransaction(randId);
+
         return new Promise((resolve, reject) => {
             this.OVM.syncdb(this.getSystemDb())
                 .then(() => {
@@ -1036,12 +1107,22 @@ class orwell {
                     if (!result && error) return this.app.rpc.error(this.app.rpc.INVALID_PARAMS, error.message);
                     if (result)
                         hashes.push(result);
+
+                    this.commitTransaction();
                     resolve(hashes)
                 })
                 .catch((err) => {
+                    this.rollbackTransaction();
                     reject(err)
                 })
         })
+    }
+    initToken(acc, tokenAccount, amount){
+        return this.writeDb(acc, tokenAccount.address, 'token', [{//initial pay
+            from: tokenAccount.address,
+            to: tokenAccount.address,
+            amount: amount
+        }])
     }
     payStockHolders(ticker, acc, amount) {
         return new Promise((resolve, reject) => {

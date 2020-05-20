@@ -151,8 +151,10 @@ class wallet {
         let unspent = this.getAddressessUnspent(addresses);
 
         let amount = new this.app.tools.BN(0);
+
         for (let i in unspent) {
-            amount.iadd(new this.app.tools.BN(unspent[i].amount))
+            if (unspent[i])
+                amount.iadd(new this.app.tools.BN(unspent[i].amount))
         }
         return amount.toString(10);
     }
@@ -180,10 +182,11 @@ class wallet {
 
         let lessers = [], greaters = [];
         for (let i in unspentList) {
-            if (unspentList[i].amount > target) {
-                greaters.push(unspentList[i]);
-            } else
-                lessers.push(unspentList[i])
+            if (unspentList[i])
+                if (unspentList[i].amount > target) {
+                    greaters.push(unspentList[i]);
+                } else
+                    lessers.push(unspentList[i])
         }
 
         if (greaters.length > 0) {
@@ -281,76 +284,6 @@ class wallet {
             amount: res.change,
             address: changeaddress.address
         });
-
-        let tx = this.app.orwell.TX.createFromRaw(inputs, outputs, privates, 0, this.app.cnf('consensus').txversion, datascript);
-        return tx;
-
-    }
-    createMultiTransaction(account_id, addr_amount_arr, datascript, fee) {
-        if (!fee)
-            fee = 0;
-
-        let amount = 0, out_addresses = []
-        for (let i in addr_amount_arr) {
-            amount += addr_amount_arr[i]
-        }
-
-        let addresses = this.getAccountAddresses(account_id)
-        let unspent = this.getAddressessUnspent(addresses);
-        let res = this.bestUnspent(unspent, amount + fee);
-
-        if (!res)
-            return {
-                status: false,
-                code: -1,
-                error: 'can not send ' + (amount + fee) + ' satoshi to address ' + out_addresses.join(", ") + ' not have unspent coins',
-            }
-
-        //make tx with out1 - address_destination, address2 - change out to new address of account_id
-        let inputs = [], privates = [];
-        for (let i in res.outs) {
-            let prevout = this.app.orwell.consensus.dataManager.getOut(res.outs[i].tx, res.outs[i].index);
-            let addrinfo = this.findAddress(prevout.address);
-
-            if (!addrinfo || !addrinfo.privateKey)
-                return {
-                    status: false,
-                    code: -2,
-                    error: 'can not find in wallet.dat info about address  ' + prevout.address,
-                    address: prevout.address,
-                }
-
-            privates.push(addrinfo.privateKey);
-
-            inputs.push({
-                hash: res.outs[i].tx,
-                index: res.outs[i].index,
-                sequence: 0xffffffff,
-                prevAddress: prevout.address,
-            })
-        }
-
-        let outputs = [];
-        for (let i in addr_amount_arr) {
-            outputs.push({
-                amount: addr_amount_arr[i],
-                address: i
-            })
-        }
-
-        let changeaddress;
-        if (this.app.cnf('wallet').changeAddress && fee)//if fee exist its mean we have second round of sending, can create new address.
-            changeaddress = this.createAccount(account_id, true);
-        else
-            changeaddress = this.getAccount(account_id);
-
-        if (!changeaddress.address)
-            throw new Error('cant create new address');
-
-        outputs.push({
-            amount: res.change,
-            address: changeaddress.address
-        })
 
         let tx = this.app.orwell.TX.createFromRaw(inputs, outputs, privates, 0, this.app.cnf('consensus').txversion, datascript);
         return tx;
@@ -512,7 +445,13 @@ class wallet {
         if (tx.isValid()) {
             promise = this.makesUnspentLocked(tx)
                 .then(() => {
-                    return tx.send();
+                    if (this.app.orwell.inTransaction()) {
+                        return this.app.orwell.addToTransaction(tx)
+                            .then(() => {
+                                return Promise.resolve(tx.getId());
+                            })
+                    } else
+                        return tx.send();
                 })
         } else {
             return Promise.reject({
@@ -531,73 +470,6 @@ class wallet {
                 tx: tx
             });
         });
-    }
-    send(account_id, address_destination, amount, datascript) {
-        let tx = this.createTransaction(account_id, address_destination, amount, datascript, 0);
-
-        if (tx.error)
-            return tx;
-
-        //create transaction with new amount (with fee) 
-        let fee = this.calculateFee(tx);
-        tx = this.createTransaction(account_id, address_destination, amount, datascript, fee);
-
-        if (tx.status == false)
-            return tx;
-
-        let hash;
-        if (tx.isValid()) {
-            this.makesUnspentLocked(tx)
-                .then(() => {
-                    hash = tx.send();
-                })
-        } else {
-            return {
-                status: false,
-                code: tx.getLastErrorCodes().join(", ")
-            }
-        }
-
-        return {
-            fee: fee,
-            status: true,
-            code: 1,
-            hash: hash,
-            tx: tx
-        }
-    }
-    sendMulti(account_id, addr_amount_arr, datascript) {
-        let tx = this.createMultiTransaction(account_id, addr_amount_arr, datascript, 0);
-
-        if (tx.error)
-            return tx;
-
-        //create transaction with new amount (with fee)
-        let fee = this.calculateFee(tx);
-        tx = this.createMultiTransaction(account_id, addr_amount_arr, datascript, fee);
-
-        if (tx.error)
-            return tx;
-
-        let hash;
-        if (tx.isValid()) {
-            hash = tx.send();
-            this.makesUnspentLocked(tx);
-        } else {
-            return {
-                status: false,
-                code: 'notvalid'
-            }
-        }
-
-        return {
-            fee: fee,
-            status: true,
-            code: 1,
-            hash: hash,
-            tx: tx
-        }
-
     }
     sendMultiFromAddress(addr, addr_amount_arr, datascript) {
         let amount = 0;
@@ -621,7 +493,13 @@ class wallet {
         if (tx.isValid()) {
             promise = this.makesUnspentLocked(tx)
                 .then(() => {
-                    return tx.send();
+                    if (this.app.orwell.inTransaction()) {
+                        return this.app.orwell.addToTransaction(tx)
+                            .then(() => {
+                                return Promise.resolve(tx.getId());
+                            })
+                    } else
+                        return tx.send();
                 })
         } else {
             return Promise.reject({
@@ -669,15 +547,15 @@ class wallet {
                 if (!addrind2 || !(addrind2 instanceof Array))
                     addrind2 = [];
 
-                    for (let k in addrind2) {
-                        if (addrind2[k].tx == inp.hash && addrind2[k].index == inp.index) {
-                            addrind2[k].spentHash = t.hash;
-                            addrind2[k].spent = 1;
-                            addrind2[k].locked = 1;
-                            changed++;
-                            break;
-                        }
-                    }  
+                for (let k in addrind2) {
+                    if (addrind2[k].tx == inp.hash && addrind2[k].index == inp.index) {
+                        addrind2[k].spentHash = t.hash;
+                        addrind2[k].spent = 1;
+                        addrind2[k].locked = 1;
+                        changed++;
+                        break;
+                    }
+                }
 
                 return Promise.all([
                     this.app.orwell.utxo.set("address/" + writer, addrind),

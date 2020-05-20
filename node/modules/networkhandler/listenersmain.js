@@ -520,6 +520,7 @@ module.exports = function (app) {
             if (selfMessage)
                 return false;
 
+
             try {
                 let b = app.orwell.BLOCK.fromJSON(message);
                 let height = app.orwell.getBlockHeight(message.p) + 1;
@@ -529,9 +530,7 @@ module.exports = function (app) {
                 app.debug('info', 'orwell', height + "/" + b.getId());
                 app.orwell.addBlockFromNetwork(null, b, 'relay', function (block, res) {
                     app.debug("info", "orwell", "added new block by rpc chain ", res.chain, block.getId());
-                    //if (b.validation_errors.length == 0) {
-                    //    b.send();
-                    //}
+                    app.emit('app.block', message);
                 });
             } catch (e) {
 

@@ -4,6 +4,7 @@ class validatorManager extends EventEmitter {
     constructor(app) {
         super();
         this.app = app;
+        this.lock = false;
     }
     init() {
         //if synced and in network - add validator to consensus from db or config
@@ -20,12 +21,15 @@ class validatorManager extends EventEmitter {
 
         this.initValidators();
     }
+    unlock(){
+        this.lock = false;
+    }
     checkActiveValidator() {
         let old = this.current;
         this.initValidators();
 
         this.app.debug("info", "validatormanager", "update validator list - old: " + old + " new: " + this.current);
-        if (this.current == this.app.cnf('node').publicKey) {
+        if (this.current == this.app.cnf('node').publicKey && !this.lock) {
             this.checkValidatorsPriority()
                 .then((hash) => {
                     if (hash) {
@@ -36,6 +40,7 @@ class validatorManager extends EventEmitter {
                     this.app.orwell.addBlockFromNetwork(null, newblock)
                         .then((data) => {
                             this.app.debug("info", "validatormanager", "added block to consensus");
+                            this.lock = true;//prevent double block from one node.
                             data.send();
                         });
                 })
