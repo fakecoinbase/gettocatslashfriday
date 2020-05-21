@@ -1299,6 +1299,10 @@ module.exports = function (app, chain) {
 
                 }
 
+                if (height === 0 && block.getPrevId() == chain.GENESIS.hash)
+                    return true;
+
+
                 if (!height) {
                     return validator.addError("Prev block is not exist in any pool", 'block_prev_missing');
                 }
