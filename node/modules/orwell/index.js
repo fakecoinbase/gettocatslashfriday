@@ -96,8 +96,8 @@ class orwell {
 
     restartTimer() {
         setTimeout(() => {
-            this.app.debug("info", "validatormanager/timer", "check current validator");
-            if (app.getSyncState() == "active")
+            this.app.debug("info", "validatormanager/timer", "check current validator", this.app.getSyncState());
+            if (this.app.getSyncState() == "active")
                 this.app.validatormanager.checkActiveValidator();
             this.restartTimer();
         }, 10000)
