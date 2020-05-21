@@ -1290,9 +1290,25 @@ module.exports = function (app, chain) {
 
             prev = chain.getBlock(block.getPrevId());
             //consensusjs must handle this //after
-            if (prev && prev.getId())
+            if (prev && prev.getId()) {
+
+                let height;
+                try {
+                    height = chain.consensus.dataManager.getDataHeight(prev.getId());
+                } catch (e) {
+
+                }
+
+                if (!height) {
+                    return validator.addError("Prev block is not exist in any pool", 'block_prev_missing');
+                }
+
+                if (Math.abs(chain.index.getTop().height - height) > 10) {
+                    return validator.addError("Prev block is too old", 'block_prev_invalid');
+                }
+
                 return true;
-            else
+            } else
                 return validator.addError("Prev block is not exist in any pool", 'block_prev_missing');
 
             return true;

@@ -422,7 +422,8 @@ module.exports = (app) => {
                         if (!tokenHolders)
                             tokenHolders = [dbaddress];
 
-                        tokenHolders.push(data.content.to);
+                        if (data.content.to && data.content.to != 0)
+                            tokenHolders.push(data.content.to);
                         tokenHolders = tokenHolders.filter((v, i, a) => a.indexOf(v) === i);
 
                         //TODO: index holder send last tokens

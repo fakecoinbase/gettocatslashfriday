@@ -105,7 +105,7 @@ module.exports = (app) => {
 
             let buff = base58.decode(address_);
             let dig = [];
-            for (let i = buff.length - 1, k = 0; k < 4; k++ , i--) {
+            for (let i = buff.length - 1, k = 0; k < 4; k++, i--) {
                 dig[3 - k] = (buff[i]);
             }
 

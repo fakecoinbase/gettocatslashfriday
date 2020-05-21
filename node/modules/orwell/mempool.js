@@ -88,8 +88,17 @@ module.exports = (app) => {
                 for (let inp in tx.in) {
                     let test = this.get("out/" + tx.in[inp].hash + ":" + tx.in[inp].index);
                     if (test && typeof test == 'string') {
-                        testunspent++;
-                        console.log("unspent tx error:", "already have used utxo in mempool: ", tx.in[inp].hash + ":" + tx.in[inp].index + ", for tx " + test);
+                        try {
+                            let t = this.getTx(test);
+                            if (t && t.out) {
+                                testunspent++;
+                                console.log("unspent tx error:", "already have used utxo in mempool: ", tx.in[inp].hash + ":" + tx.in[inp].index + ", for tx " + test);
+                            } else {
+                                this.removeTx(test);
+                            }
+                        } catch (e) {
+
+                        }
                     }
                 }
 
@@ -105,7 +114,7 @@ module.exports = (app) => {
 
                 for (let o in tx.out) {
                     let out = tx.out[o];
-                    promise = promise.then(() => { this.addOutIndex('input', tx.hash, out.address, out.amount); });
+                    promise = promise.then(() => { this.addOutIndex('input', tx.hash, out.address, out.amount, fromNet, o); });
                 }
 
                 for (let inp in tx.in) {
@@ -150,7 +159,7 @@ module.exports = (app) => {
                 cb(tx, t, false)
             }
         }
-        addOutIndex(type, tx, addr, amount, events) {
+        addOutIndex(type, tx, addr, amount, events, index) {
             let promise = Promise.resolve();
             this.app.debug('info', 'mempool', "add unconfirmed index " + addr, tx, amount)
 
@@ -173,6 +182,7 @@ module.exports = (app) => {
                     let obj = {
                         type: type, //input||output
                         tx: tx,
+                        index: index,
                         amount: amount
                     };
                     addrind.push(obj);
@@ -214,12 +224,16 @@ module.exports = (app) => {
             let tx = this.get(txHash);
             for (let i in tx.in) {
                 promise = promise.then(() => { this.remove("address/" + tx.in[i].hash + ":" + tx.in[i].index); return Promise.resolve(); });
+                promise = promise.then(() => {
+                    return this.remove("out/" + tx.in[i].hash + ":" + tx.in[i].index);
+                })
             }
             //ds/address
 
             for (let i in tx.out) {
                 let out = tx.out[i];
                 let addrhash = this.app.orwell.ADDRESS.getPublicKeyHashByAddress(out.address).toString('hex');
+
                 promise = promise.then(() => { this.remove("ds/address/" + addrhash); return Promise.resolve(); });
             }
 

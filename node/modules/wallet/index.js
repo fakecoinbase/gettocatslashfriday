@@ -94,7 +94,7 @@ class wallet {
 
             if (!arr[i].spent && !arr[i].spentHash && !arr[i].locked) {
                 if (height) {
-                    if (arr[i] < height)
+                    if (arr[i].height < height)
                         a.push(arr[i]);
                 } else
                     a.push(arr[i]);
@@ -105,12 +105,16 @@ class wallet {
         if (!arrmem)
             arrmem = [];
         for (let i in arrmem) {
+            if (arrmem.type != 'input')
+                continue;
             if (!arrmem[i].spent && !arrmem[i].spentHash && !arrmem[i].locked) {
-                if (height) {
-                    if (arr[i] < height)
-                        a.push(arr[i]);
-                } else
-                    a.push(arr[i]);
+                try {
+                    let t = this.app.orwell.mempool.getTx(arrmem[i].tx);
+                    if (t && t.out)
+                        a.push(arrmem[i]);
+                } catch (e) {
+                    
+                }
             }
         }
 

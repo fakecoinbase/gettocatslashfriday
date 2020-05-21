@@ -97,7 +97,8 @@ class orwell {
     restartTimer() {
         setTimeout(() => {
             this.app.debug("info", "validatormanager/timer", "check current validator");
-            this.app.validatormanager.checkActiveValidator();
+            if (app.getSyncState() == "active")
+                this.app.validatormanager.checkActiveValidator();
             this.restartTimer();
         }, 10000)
     }
@@ -459,15 +460,15 @@ class orwell {
 
     getBlock(hash) {
         let mainblock = this.consensus.dataManager.getData(hash);
-        let sideblock = this.consensus.dataManager.getSideData(hash);
-        let orphanblock = this.consensus.dataManager.getOrphanData(hash);
+        //let sideblock = this.consensus.dataManager.getSideData(hash);
+        //let orphanblock = this.consensus.dataManager.getOrphanData(hash);
 
         if (mainblock)
             return mainblock;
-        if (sideblock)
-            return sideblock;
-        if (orphanblock)
-            return orphanblock;
+        //if (sideblock)
+        //    return sideblock;
+        //if (orphanblock)
+        //    return orphanblock;
 
         throw new Error('block ' + hash + " not exist in any pool");
     }
@@ -1117,7 +1118,7 @@ class orwell {
                 })
         })
     }
-    initToken(acc, tokenAccount, amount){
+    initToken(acc, tokenAccount, amount) {
         return this.writeDb(acc, tokenAccount.address, 'token', [{//initial pay
             from: tokenAccount.address,
             to: tokenAccount.address,
